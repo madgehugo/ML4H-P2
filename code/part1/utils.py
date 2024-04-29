@@ -2,9 +2,9 @@ import pandas as pd
 
 
 # TODO: Add headers to the data
-def load_train_test():
-    df_train = pd.read_csv('../../data/ptbdb_train.csv', header=None)
-    df_test = pd.read_csv('../../data/ptbdb_test.csv', header=None)
+def load_train_test(dpath="../../data/"):
+    df_train = pd.read_csv(dpath / 'ptbdb_train.csv', header=None)
+    df_test = pd.read_csv(dpath / 'ptbdb_test.csv', header=None)
 
     # Train split
     X_train = df_train.iloc[:, :-1]
@@ -15,3 +15,8 @@ def load_train_test():
     y_test = df_test.iloc[:, -1]
 
     return X_train, y_train, X_test, y_test
+
+
+# Reshape the data for LSTM
+def reshape_data(X):
+    return X.values.reshape((X.shape[0], X.shape[1], 1))
