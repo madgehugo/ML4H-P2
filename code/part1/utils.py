@@ -3,8 +3,8 @@ import pandas as pd
 
 # TODO: Add headers to the data
 def load_train_test():
-    df_train = pd.read_csv('data/ptbdb_train.csv', header=None)
-    df_test = pd.read_csv('data/ptbdb_test.csv', header=None)
+    df_train = pd.read_csv('../../data/ptbdb_train.csv', header=None)
+    df_test = pd.read_csv('../../data/ptbdb_test.csv', header=None)
 
     # Train split
     X_train = df_train.iloc[:, :-1]
