@@ -6,11 +6,13 @@ from tensorflow.keras.layers import (Activation, Add, BatchNormalization,
 from tensorflow.keras.metrics import AUC, Precision, Recall
 from tensorflow.keras.models import Model, Sequential
 from tensorflow.keras.regularizers import l2
-from utils import fit_evaluate, load_train_test, reshape_data
+
+from ..utils.utils import fit_evaluate, load_train_test, reshape_data
 
 
 # Vanilla CNN
-def build_vanilla_cnn(input_shape):
+def build_vanilla_cnn(input_shape, loss='binary_crossentropy',
+                      out_activation='sigmoid', num_classes=1):
     model = Sequential()
     model.add(Conv1D(filters=32, kernel_size=3,
                      activation='relu',
@@ -22,10 +24,10 @@ def build_vanilla_cnn(input_shape):
     model.add(Flatten())
     model.add(Dense(64, activation='relu'))
     model.add(Dropout(0.5))
-    model.add(Dense(1, activation='sigmoid'))
+    model.add(Dense(num_classes, activation=out_activation))
 
     model.compile(optimizer='adam',
-                  loss='binary_crossentropy',
+                  loss=loss,
                   metrics=[
                       AUC(name='auc'),
                       Precision(name='precision'),
@@ -92,7 +94,7 @@ def build_resnet_cnn(input_shape, filters=32, kernel_size=5, strides=2):
 # Main
 if __name__ == "__main__":
     # Load the data
-    dpath = Path("./data/")
+    dpath = Path("./data/ptbdb/")
     X_train, y_train, X_test, y_test = load_train_test(dpath)
 
     # Reshape the data for CNNs

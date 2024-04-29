@@ -3,9 +3,9 @@ from sklearn.metrics import auc, precision_recall_curve, roc_auc_score
 
 
 # TODO: Add headers to the data
-def load_train_test(dpath="../../data/"):
-    df_train = pd.read_csv(dpath / 'ptbdb_train.csv', header=None)
-    df_test = pd.read_csv(dpath / 'ptbdb_test.csv', header=None)
+def load_train_test(dpath="../../data/ptbdb/"):
+    df_train = pd.read_csv(dpath / 'train.csv', header=None)
+    df_test = pd.read_csv(dpath / 'test.csv', header=None)
 
     # Train split
     X_train = df_train.iloc[:, :-1]

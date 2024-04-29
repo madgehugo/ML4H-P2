@@ -4,7 +4,8 @@ from pathlib import Path
 from tensorflow.keras.layers import LSTM, Bidirectional, Dense, Dropout
 from tensorflow.keras.metrics import AUC, Precision, Recall
 from tensorflow.keras.models import Sequential
-from utils import fit_evaluate, load_train_test, reshape_data
+
+from ..utils.utils import fit_evaluate, load_train_test, reshape_data
 
 
 # Define the LSTM models
@@ -48,7 +49,7 @@ def lstm_model_bidirectional(X_train):
 
 if __name__ == "__main__":
     # Load the data
-    dpath = Path("./data/")
+    dpath = Path("./data/ptbdb/")
     X_train, y_train, X_test, y_test = load_train_test(dpath)
 
     # Reshape the data for LSTM

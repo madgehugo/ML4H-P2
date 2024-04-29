@@ -10,7 +10,8 @@ PLANNED DIRECTORY SETUP:
 .
 ├── code                    # Scripts
     ├── part1
-    └── part2
+    ├── part2
+    └── utils
 ├── data                    # Input data
 ├── test                    # Automated tests
 ├── results                 # Output from scripts
