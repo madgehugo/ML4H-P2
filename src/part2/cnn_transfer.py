@@ -2,11 +2,12 @@ from pathlib import Path
 
 from tensorflow.keras.utils import to_categorical
 
-from ..part1.cnn import build_vanilla_cnn
-from ..utils.utils import fit_evaluate, load_train_test, reshape_data
+from src.part1.cnn import build_vanilla_cnn
+from src.utils.utils import fit_evaluate, load_train_test, reshape_data
 
 # Main
 if __name__ == "__main__":
+    print("--- Transfer Learning ---")
     # Load the data
     dpath = Path("./data/mitbih/")
     X_train, y_train, X_test, y_test = load_train_test(dpath)
