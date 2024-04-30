@@ -8,7 +8,7 @@ PLANNED DIRECTORY SETUP:
 
 ```
 .
-├── code                    # Scripts
+├── src                    # Scripts
     ├── part1
     ├── part2
     └── utils
