@@ -7,7 +7,7 @@ from tensorflow.keras.metrics import AUC, Precision, Recall
 from tensorflow.keras.models import Model, Sequential
 from tensorflow.keras.regularizers import l2
 
-from ..utils.utils import fit_evaluate, load_train_test, reshape_data
+from src.utils.utils import fit_evaluate, load_train_test, reshape_data
 
 
 # Vanilla CNN
@@ -62,7 +62,9 @@ def residual_block(x, filters, kernel_size=3, stride=1,
     return x
 
 
-def build_resnet_cnn(input_shape, filters=32, kernel_size=5, strides=2):
+def build_resnet_cnn(input_shape, filters=32, kernel_size=5, strides=2,
+                     loss='binary_crossentropy', out_activation='sigmoid',
+                     num_classes=1):
     inputs = Input(shape=input_shape)
 
     # Initial conv block
@@ -82,11 +84,11 @@ def build_resnet_cnn(input_shape, filters=32, kernel_size=5, strides=2):
     x = Flatten()(x)
     x = Dense(64, activation='relu')(x)
     x = Dropout(0.5)(x)
-    x = Dense(1, activation='sigmoid')(x)
+    x = Dense(num_classes, activation=out_activation)(x)
 
     model = Model(inputs, x)
     model.compile(optimizer='adam',
-                  loss='binary_crossentropy',
+                  loss=loss,
                   metrics=['accuracy'])
     return model
 

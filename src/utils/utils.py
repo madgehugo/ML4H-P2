@@ -1,5 +1,7 @@
+import numpy as np
 import pandas as pd
 from sklearn.metrics import auc, precision_recall_curve, roc_auc_score
+from sklearn.preprocessing import label_binarize
 
 
 # TODO: Add headers to the data
@@ -25,7 +27,8 @@ def reshape_data(X):
 
 # Fit and evaluate models
 def fit_evaluate(model, X_train, y_train, X_test, y_test,
-                 epochs=50, batch_size=64, val_split=0.1):
+                 epochs=50, batch_size=64, val_split=0.1,
+                 num_classes=1):
 
     _ = model.fit(X_train, y_train,
                   epochs=epochs, batch_size=batch_size,
@@ -36,6 +39,28 @@ def fit_evaluate(model, X_train, y_train, X_test, y_test,
     roc_score = roc_auc_score(y_test, predictions)
     print(f"ROC-AUC: {roc_score:.3f}")
 
-    precision, recall, _ = precision_recall_curve(y_test, predictions)
-    auprc_score = auc(recall, precision)
-    print(f"AUPRC: {auprc_score:.3f} \n")
+    if num_classes == 1:
+        precision, recall, _ = precision_recall_curve(y_test, predictions)
+        auprc_score = auc(recall, precision)
+        print(f"AUPRC: {auprc_score:.3f} \n")
+
+    else:
+        # One vs. Rest (OvR) AUPRC
+        y_test_binarized = label_binarize(
+            y_test, classes=np.arange(num_classes)
+            )
+
+        # Calculate AUPRC for each class
+        auprc_scores = []
+        for i in range(num_classes):
+            precision, recall, _ = precision_recall_curve(
+                y_test_binarized[:, i],
+                predictions[:, i]
+                )
+            auprc_score = auc(recall, precision)
+            auprc_scores.append(auprc_score)
+
+        # Calculate the average AUPRC across all classes
+        average_auprc = np.mean(auprc_scores)
+
+        print("Average AUPRC: {:.3f}".format(average_auprc))

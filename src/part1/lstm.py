@@ -5,7 +5,7 @@ from tensorflow.keras.layers import LSTM, Bidirectional, Dense, Dropout
 from tensorflow.keras.metrics import AUC, Precision, Recall
 from tensorflow.keras.models import Sequential
 
-from ..utils.utils import fit_evaluate, load_train_test, reshape_data
+from src.utils.utils import fit_evaluate, load_train_test, reshape_data
 
 
 # Define the LSTM models
