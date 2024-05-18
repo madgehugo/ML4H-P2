@@ -1,178 +1,161 @@
-from pathlib import Path
-import tensorflow as tf
-from tensorflow.keras.layers import LSTM, Bidirectional, Dense, Dropout
-from tensorflow.keras.metrics import AUC, Precision, Recall
-from tensorflow.keras.models import Sequential
-
-import tensorflow_decision_forests as tfdf
-
-from tsfresh import extract_features
-
-
-
-#from src.utils.utils import fit_evaluate, load_train_test, reshape_data
-# TEMP as I had import issues with src utils
-
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader, TensorDataset
 import numpy as np
 import pandas as pd
-from sklearn.metrics import auc, precision_recall_curve, roc_auc_score
-from sklearn.preprocessing import label_binarize
+from pathlib import Path
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+from sklearn.metrics import roc_auc_score, average_precision_score
 
 
-# TODO: Add headers to the data
+class TransformerEncoderLayer(nn.Module):
+    def __init__(self, d_model, nhead, dim_feedforward=512, dropout=0.1):
+        super(TransformerEncoderLayer, self).__init__()
+        self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
+        self.linear1 = nn.Linear(d_model, dim_feedforward)
+        self.dropout = nn.Dropout(dropout)
+        self.linear2 = nn.Linear(dim_feedforward, d_model)
+        self.norm1 = nn.LayerNorm(d_model)
+        self.norm2 = nn.LayerNorm(d_model)
+        self.dropout1 = nn.Dropout(dropout)
+        self.dropout2 = nn.Dropout(dropout)
+
+    def forward(self, src, src_mask=None):
+        src2, attn_weights = self.self_attn(src, src, src, attn_mask=src_mask)
+        src = src + self.dropout1(src2)
+        src = self.norm1(src)
+        src2 = self.linear2(self.dropout(torch.relu(self.linear1(src))))
+        src = src + self.dropout2(src2)
+        src = self.norm2(src)
+        return src, attn_weights
+
+class TransformerModel(nn.Module):
+    def __init__(self, num_layers, d_model, nhead, dim_feedforward, num_classes, dropout=0.1):
+        super(TransformerModel, self).__init__()
+        self.encoder_layers = nn.ModuleList([TransformerEncoderLayer(d_model, nhead, dim_feedforward, dropout) for _ in range(num_layers)])
+        self.fc = nn.Linear(d_model, num_classes)
+
+    def forward(self, src, src_mask=None):
+        attention_weights = []
+        for layer in self.encoder_layers:
+            src, attn_weights = layer(src, src_mask)
+            attention_weights.append(attn_weights)
+        output = self.fc(src)
+        return output, attention_weights
+
 def load_train_test(dpath="../../data/ptbdb/"):
-    df_train = pd.read_csv(dpath / 'train.csv', header=None)
-    df_test = pd.read_csv(dpath / 'test.csv', header=None)
+    df_train = pd.read_csv(Path(dpath) / 'train.csv', header=None)
+    df_test = pd.read_csv(Path(dpath) / 'test.csv', header=None)
 
     # Train split
-    X_train = df_train.iloc[:, :-1]
-    y_train = df_train.iloc[:, -1]
+    X_train = torch.tensor(df_train.iloc[:, :-1].values, dtype=torch.float32)
+    y_train = torch.tensor(df_train.iloc[:, -1].values, dtype=torch.float32)
 
     # Test split
-    X_test = df_test.iloc[:, :-1]
-    y_test = df_test.iloc[:, -1]
+    X_test = torch.tensor(df_test.iloc[:, :-1].values, dtype=torch.float32)
+    y_test = torch.tensor(df_test.iloc[:, -1].values, dtype=torch.float32)
 
     return X_train, y_train, X_test, y_test
 
 
-# Reshape the data for LSTM
-def reshape_data(X):
-    return X.values.reshape((X.shape[0], X.shape[1], 1))
+def fit_evaluate(model, train_loader, test_loader, optimizer, criterion, epochs=10):
+    model.train()
+    for epoch in range(epochs):
+        running_loss = 0.0
+        for inputs, targets in train_loader:
+            optimizer.zero_grad()
+            outputs, _ = model(inputs)
+            targets = targets.unsqueeze(1)  # Convert to tensor
+            loss = criterion(outputs, targets)  # Assuming binary classification
+            loss.backward()
+            optimizer.step()
+            running_loss += loss.item()
+
+        print(f"Epoch {epoch + 1} Training Loss: {running_loss / len(train_loader)}")
+
+    model.eval()
+    correct = 0
+    total = 0
+    predictions = []
+    targets = []
+    with torch.no_grad():
+        for inputs, targets_batch in test_loader:
+            outputs, _ = model(inputs)
+            predicted = torch.round(torch.sigmoid(outputs))
+            total += targets_batch.size(0)
+            correct += (predicted == targets_batch.unsqueeze(1)).sum().item()
+            predictions.extend(predicted.cpu().numpy())
+            targets.extend(targets_batch.cpu().numpy())
+
+    accuracy = correct / total
+    print(f"Accuracy: {accuracy}")
+
+    # Calculate AUROC
+    auroc = roc_auc_score(targets, predictions)
+
+    # Calculate AUPRC
+    auprc = average_precision_score(targets, predictions)
+
+    print(f"AUROC: {auroc}")
+    print(f"AUPRC: {auprc}")
 
 
-# Fit and evaluate models
-def fit_evaluate(model, X_train, y_train, X_test, y_test,
-                 epochs=50, batch_size=64, val_split=0.1,
-                 num_classes=1):
+def visualize_attention(model, src_len):
+    src = ["<sos>"] + [str(i) for i in range(1, src_len-1)] + ["<eos>"]
+    trg = ["<sos>"] + ["<eos>"]
+    model.eval()
+    with torch.no_grad():
+        for i, (inputs, _) in enumerate(test_loader):
+            inputs = inputs.to(device)
+            print(inputs)
+            _, attention_weights = model(inputs)
+            attention_weights = attention_weights[-1].cpu().numpy().squeeze()
 
-    _ = model.fit(X_train, y_train,
-                  epochs=epochs, batch_size=batch_size,
-                  validation_split=val_split)
+            plt.figure(figsize=(src_len, src_len))
+            sns.heatmap(attention_weights, xticklabels=trg, yticklabels=src, annot=True, cbar=False)
+            plt.title(f'Attention Heatmap for Example {i+1}')
+            plt.xlabel('Target')
+            plt.ylabel('Source')
+            plt.savefig(f'attention_heatmap_example_{i+1}.png')  # Save figure to a file
+            plt.close()  # Close the figure
+            print(f"Attention Heatmap for Example {i+1} saved!")    
+            if i > 3:
+                break  # Only visualize the attention of the first example
 
-    predictions = model.predict(X_test)
+# Set device
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    roc_score = roc_auc_score(y_test, predictions)
-    print(f"ROC-AUC: {roc_score:.3f}")
+# Hyperparameters
+num_layers = 4
+d_model = 187
+nhead = 1
+dim_feedforward = 512
+num_classes = 1
+dropout = 0.1
+epochs = 10
+batch_size = 64
 
-    if num_classes == 1:
-        precision, recall, _ = precision_recall_curve(y_test, predictions)
-        auprc_score = auc(recall, precision)
-        print(f"AUPRC: {auprc_score:.3f} \n")
+# Load data
+X_train, y_train, X_test, y_test = load_train_test()
 
-    else:
-        # One vs. Rest (OvR) AUPRC
-        y_test_binarized = label_binarize(
-            y_test, classes=np.arange(num_classes)
-            )
+# Create DataLoader
+train_data = TensorDataset(X_train, y_train)
+test_data = TensorDataset(X_test, y_test)
+train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
+test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=False)
 
-        # Calculate AUPRC for each class
-        auprc_scores = []
-        for i in range(num_classes):
-            precision, recall, _ = precision_recall_curve(
-                y_test_binarized[:, i],
-                predictions[:, i]
-                )
-            auprc_score = auc(recall, precision)
-            auprc_scores.append(auprc_score)
+# Initialize model
+model = TransformerModel(num_layers, d_model, nhead, dim_feedforward, num_classes, dropout).to(device)
 
-        # Calculate the average AUPRC across all classes
-        average_auprc = np.mean(auprc_scores)
+# Define loss and optimizer
+criterion = nn.BCEWithLogitsLoss()
+optimizer = optim.Adam(model.parameters())
 
-        print("Average AUPRC: {:.3f}".format(average_auprc))
+# Train and evaluate the model
+fit_evaluate(model, train_loader, test_loader, optimizer, criterion)
 
-
-def log_reg_model(X_train):
-    model = Sequential()
-    model.add(
-        Dense(
-            1, 
-            activation='sigmoid',  # Sigmoid activation for logistic regression
-            input_shape=(X_train.shape[1],)  # Input shape is 1D
-            )) 
-    model.compile(
-        optimizer='adam',
-        loss='binary_crossentropy',
-        metrics=[
-            AUC(name='auc'),
-            Precision(name='precision'),
-            Recall(name='recall')
-        ])
-    return model
-
-
-import keras
-from tensorflow.keras import layers
-import tensorflow as tf
-print(tf.__version__)
-def transformer_encoder(inputs, head_size, num_heads, ff_dim, dropout=0):
-    # Attention and Normalization
-    x, weights = tf.keras.layers.MultiHeadAttention(
-        key_dim=head_size, num_heads=num_heads, dropout=dropout, return_attention_scores=True
-    )(inputs, inputs)
-    x = layers.Dropout(dropout)(x)
-    x = layers.LayerNormalization(epsilon=1e-6)(x)
-    res = x + inputs
-
-    # Feed Forward Part
-    x = layers.Conv1D(filters=ff_dim, kernel_size=1, activation="relu")(res)
-    x = layers.Dropout(dropout)(x)
-    x = layers.Conv1D(filters=inputs.shape[-1], kernel_size=1)(x)
-    x = layers.LayerNormalization(epsilon=1e-6)(x)
-    return x + res
-
-
-if __name__ == "__main__":
-    # Load the data
-    dpath = Path("../../data/ptbdb/")
-    X_train, y_train, X_test, y_test = load_train_test(dpath)
-
-    # Reshape the data for LSTM
-    X_train = reshape_data(X_train)
-    X_test = reshape_data(X_test)
-
-    print(X_test[:1].shape)
-    print(y_test[:1].shape)
-
-    inputs = keras.Input(shape=(X_train.shape[1],1))
-    x = inputs
-    x = transformer_encoder(x, 64, 4, 4, 0.1)
-    x = layers.GlobalAveragePooling1D()(x)
-    x = Dense(128, activation="relu")(x)
-    x = Dense(64, activation="selu")(x)
-    x = Dense(32, activation="selu")(x)
-    x = Dense(16, activation="selu")(x)
-    outputs = Dense(1, activation="sigmoid")(x)
-    tf_model= keras.Model(inputs, outputs)
-
-    tf_model.compile(
-        optimizer='adam',
-        loss='binary_crossentropy',
-        metrics=[
-            AUC(name='auc'),
-            Precision(name='precision'),
-            Recall(name='recall')
-        ])
-    print(tf_model.summary())
-    print(tf_model.layers[1])
-    tf_model.fit(X_train, y_train, validation_split=0.2, epochs=10)
-    scores = tf_model.evaluate(X_test,y_test)
-
-    predictions = tf_model.predict(X_test)
-
-    roc_score = roc_auc_score(y_test, predictions)
-    print(f"ROC-AUC: {roc_score:.3f}")
-
-    precision, recall, _ = precision_recall_curve(y_test, predictions)
-    auprc_score = auc(recall, precision)
-    print(f"AUPRC: {auprc_score:.3f} \n")
-
-    import seaborn as sb
-    import matplotlib.pyplot as plt
-    attention_layer = tf_model.layers[1]
-    _, attention_scores = attention_layer(y_test[:1], X_test[:1], return_attention_scores=True) # take one sample
-    fig, axs = plt.subplots(ncols=3, gridspec_kw=dict(width_ratios=[5,5,0.2]))
-    sb.heatmap(attention_scores[0, 0, :, :], annot=True, cbar=False, ax=axs[0])
-    sb.heatmap(attention_scores[0, 1, :, :], annot=True, yticklabels=False, cbar=False, ax=axs[1])
-    fig.colorbar(axs[1].collections[0], cax=axs[2])
-    plt.show()
-    
+# Visualize attention
+visualize_attention(model, X_train.shape[1])
