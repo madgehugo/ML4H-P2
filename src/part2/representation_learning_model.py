@@ -103,12 +103,19 @@ def build_resnet_encoder(input_shape, filters=32, kernel_size=5, strides=2, out_
     return encoder
 
 # Define the decoder
-def build_decoder_1(latent_dim, original_shape):
+def build_decoder_1(latent_dim, output_shape):
+    encoded_input = Input(shape=(latent_dim,))
+    x = Dense(64, activation='relu')(encoded_input)
+    x = Dense(output_shape[0] * output_shape[1], activation='relu')(x)
+    x = Reshape(output_shape)(x)
+    x = Conv1DTranspose(64, 3, activation='relu', padding='same')(x)
+    x = UpSampling1D(2)(x)
+    x = Conv1DTranspose(32, 3, activation='relu', padding='same')(x)
+    x = UpSampling1D(2)(x)
+    x = Conv1DTranspose(1, 3, activation='sigmoid', padding='same')(x)
 
-    decoded = layers.Dense(64, activation='relu')(encoded)
-    decoded = layers.Dense(128, activation='relu')(decoded)
-    decoded = layers.Dense(187, activation='sigmoid')(decoded)
-    return decoded
+    decoder = Model(encoded_input, x, name='decoder')
+    return decoder
 
 
 
@@ -191,21 +198,21 @@ if __name__ == "__main__":
     n_classes = 5
     y_train_encoded = to_categorical(y_train, num_classes=n_classes)
     y_test_encoded = to_categorical(y_test, num_classes=n_classes)
+    encoder = build_resnet_encoder(input_shape, filters=32, kernel_size=5, strides=2, out_activation='sigmoid', num_classes=64)
+    decoder = build_decoder_1(64, input_shape)
 
     latent_dim=64
-    encoded = build_resnet_encoder(input_shape, filters=32, kernel_size=5, strides=2, out_activation='sigmoid',
-                     num_classes=1)
+    autoencoder_input = Input(shape=input_shape)
+    encoded_output = encoder(autoencoder_input)
+    decoded_output = decoder(encoded_output)
 
-    decoded = build_decoder_1(64, 187)
-
-    autoencoder = keras.Model(input_shape, decoded)
+    autoencoder = Model(autoencoder_input, decoded_output, name='autoencoder')
     autoencoder.compile(optimizer='adam', loss='binary_crossentropy')
 
     autoencoder.fit(X_train_reshaped, X_train_reshaped,
-                epochs=100,
-                batch_size=256,
-                shuffle=True)
-
+                    epochs=100,
+                    batch_size=256,
+                    shuffle=True)
 
 
   
