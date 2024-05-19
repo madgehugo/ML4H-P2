@@ -1,4 +1,5 @@
 from pathlib import Path
+from warnings import filters
 
 from tensorflow.keras.utils import to_categorical
 
@@ -18,6 +19,8 @@ from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.layers import Reshape, Conv1DTranspose
 from tensorflow.keras.models import Model
 from tensorflow.keras.losses import MeanSquaredError
+import keras
+from keras import layers
 
 
 import numpy as np
@@ -62,54 +65,51 @@ def residual_block(x, filters, kernel_size=3, stride=1, conv_shortcut=True, name
     return x
 
 # Define the encoder
-def build_resnet_encoder(input_shape, filters=32, kernel_size=5, strides=2):
+def build_resnet_encoder(input_shape, filters=32, kernel_size=5, strides=2, out_activation='sigmoid',
+                     num_classes=1):
     inputs = Input(shape=input_shape)
     x = Conv1D(filters, kernel_size, strides=strides, padding='same', name='conv1')(inputs)
     x = BatchNormalization(name='bn_conv1')(x)
     x = Activation('relu')(x)
+    print("ACTIVATION")
+    print(x.shape)
 
     x = residual_block(x, filters, name='res_block1')
     x = MaxPooling1D(3, strides=strides, padding='same')(x)
+    print("RES BLOCK")
+    print(x.shape)
 
     x = residual_block(x, 64, name='res_block2')
     x = MaxPooling1D(3, strides=strides, padding='same')(x)
+    print("RES BLOCK")
+    print(x.shape)
 
     x = Flatten()(x)
+    print("FLFATTEN")
+    print(x.shape)
+    
+    x = Dense(64, activation='relu')(x)
+    print("DENSE")
+    print(x.shape)
+    x = Dropout(0.5)(x)
+    print("DROPOUT")
+    print(x.shape)
+    x = Dense(num_classes, activation=out_activation)(x)
+    print(x.shape)
+
     encoder = Model(inputs, x, name='encoder')
+
+
     return encoder
 
 # Define the decoder
-def build_decoder(latent_dim, original_shape, filters=32, kernel_size=5, strides=2):
-    latent_inputs = Input(shape=(latent_dim,))
-    x = Dense(23 * filters)(latent_inputs)
-    x = Reshape((23, filters))(x)
+def build_decoder_1(latent_dim, original_shape):
 
-    x = Conv1DTranspose(64, kernel_size, strides=strides, padding='same')(x)
-    x = BatchNormalization()(x)
-    x = Activation('relu')(x)
+    decoded = layers.Dense(64, activation='relu')(encoded)
+    decoded = layers.Dense(128, activation='relu')(decoded)
+    decoded = layers.Dense(187, activation='sigmoid')(decoded)
+    return decoded
 
-    x = Conv1DTranspose(64, kernel_size, strides=1, padding='same')(x)
-    x = BatchNormalization()(x)
-    x = Activation('relu')(x)
-
-    x = Conv1DTranspose(filters, 3, strides=strides, padding='same')(x)
-
-    x = Conv1DTranspose(filters, kernel_size, strides=strides, padding='same')(x)
-    x = BatchNormalization()(x)
-    x = Activation('relu')(x)
-
-    x = Conv1DTranspose(filters, kernel_size, strides=1, padding='same')(x)
-    x = BatchNormalization()(x)
-    x = Activation('relu')(x)
-
-    x = Conv1DTranspose(1, kernel_size, strides=strides, padding='same')(x)
-    x = BatchNormalization()(x)
-    x = Activation('sigmoid')(x)
-
-    x = x[:, :original_shape[0], :]
-
-    decoder = Model(latent_inputs, x, name='decoder')
-    return decoder
 
 
 # TODO: Add headers to the data
@@ -192,23 +192,20 @@ if __name__ == "__main__":
     y_train_encoded = to_categorical(y_train, num_classes=n_classes)
     y_test_encoded = to_categorical(y_test, num_classes=n_classes)
 
-    latent_dim=1536
-    encoder = build_resnet_encoder(input_shape, filters=32, kernel_size=5, strides=2)
-    decoder = build_decoder(latent_dim, input_shape, filters=32, kernel_size=5, strides = 2)
+    latent_dim=64
+    encoded = build_resnet_encoder(input_shape, filters=32, kernel_size=5, strides=2, out_activation='sigmoid',
+                     num_classes=1)
 
-    autoencoder_input = Input(shape=input_shape)
-    encoded = encoder(autoencoder_input)
-    decoded = decoder(encoded)
-    autoencoder = Model(autoencoder_input, decoded, name='autoencoder')
+    decoded = build_decoder_1(64, 187)
 
-    # Compile the autoencoder
-    autoencoder.compile(optimizer='adam', loss='mse')
+    autoencoder = keras.Model(input_shape, decoded)
+    autoencoder.compile(optimizer='adam', loss='binary_crossentropy')
 
-    # Print model summaries
-    encoder.summary()
-    decoder.summary()
-    autoencoder.summary()
+    autoencoder.fit(X_train_reshaped, X_train_reshaped,
+                epochs=100,
+                batch_size=256,
+                shuffle=True)
 
-    history = autoencoder.fit(X_train_reshaped, X_train_reshaped, epochs=50, batch_size=32)
+
 
   
