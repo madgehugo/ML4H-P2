@@ -71,34 +71,18 @@ def build_resnet_encoder(input_shape, filters=32, kernel_size=5, strides=2, out_
     x = Conv1D(filters, kernel_size, strides=strides, padding='same', name='conv1')(inputs)
     x = BatchNormalization(name='bn_conv1')(x)
     x = Activation('relu')(x)
-    print("ACTIVATION")
-    print(x.shape)
-
+   
     x = residual_block(x, filters, name='res_block1')
     x = MaxPooling1D(3, strides=strides, padding='same')(x)
-    print("RES BLOCK")
-    print(x.shape)
 
     x = residual_block(x, 64, name='res_block2')
     x = MaxPooling1D(3, strides=strides, padding='same')(x)
-    print("RES BLOCK")
-    print(x.shape)
 
     x = Flatten()(x)
-    print("FLFATTEN")
-    print(x.shape)
-    
     x = Dense(64, activation='relu')(x)
-    print("DENSE")
-    print(x.shape)
     x = Dropout(0.5)(x)
-    print("DROPOUT")
-    print(x.shape)
     x = Dense(num_classes, activation=out_activation)(x)
-    print(x.shape)
-
     encoder = Model(inputs, x, name='encoder')
-
 
     return encoder
 
@@ -108,11 +92,6 @@ def build_decoder_1(latent_dim, output_shape):
     x = Dense(64, activation='relu')(encoded_input)
     x = Dense(output_shape[0] * output_shape[1], activation='relu')(x)
     x = Reshape(output_shape)(x)
-    x = Conv1DTranspose(64, 3, activation='relu', padding='same')(x)
-    x = UpSampling1D(2)(x)
-    x = Conv1DTranspose(32, 3, activation='relu', padding='same')(x)
-    x = UpSampling1D(2)(x)
-    x = Conv1DTranspose(1, 3, activation='sigmoid', padding='same')(x)
 
     decoder = Model(encoded_input, x, name='decoder')
     return decoder
@@ -198,7 +177,8 @@ if __name__ == "__main__":
     n_classes = 5
     y_train_encoded = to_categorical(y_train, num_classes=n_classes)
     y_test_encoded = to_categorical(y_test, num_classes=n_classes)
-    encoder = build_resnet_encoder(input_shape, filters=32, kernel_size=5, strides=2, out_activation='sigmoid', num_classes=64)
+    
+    encoder = build_resnet_encoder(input_shape, filters=32, kernel_size=5, strides=2, out_activation='sigmoid', num_classes = 64)
     decoder = build_decoder_1(64, input_shape)
 
     latent_dim=64
@@ -210,9 +190,11 @@ if __name__ == "__main__":
     autoencoder.compile(optimizer='adam', loss='binary_crossentropy')
 
     autoencoder.fit(X_train_reshaped, X_train_reshaped,
-                    epochs=100,
+                    epochs=10,
                     batch_size=256,
                     shuffle=True)
+
+    
 
 
   

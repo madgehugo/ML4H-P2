@@ -16,13 +16,16 @@ from tensorflow.keras.regularizers import l2
 from tensorflow.keras.layers import Input, Conv1D, BatchNormalization, Activation, MaxPooling1D, Flatten, Dense, Dropout, UpSampling1D, Reshape
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.layers import Input, Dense, Reshape, BatchNormalization, LeakyReLU
+from tensorflow.keras.models import Model
 
 import numpy as np
 import pandas as pd
 from sklearn.metrics import auc, precision_recall_curve, roc_auc_score
 from sklearn.preprocessing import label_binarize
 import matplotlib.pyplot as plt
-
+import keras
+from keras import layers
 
 
 def load_train_test(dpath="../../data/ptbdb/"):
@@ -87,31 +90,74 @@ def fit_evaluate(model, X_train, y_train, X_test, y_test,
         print("Average AUPRC: {:.3f}".format(average_auprc))
 
 
-# RES BLOCK TASK 1
-def residual_block(x, filters, kernel_size=3, strides=1, name='name'):
-    # Shortcut connection
-    shortcut = x
+def residual_block(x, filters, kernel_size=3, stride=1, conv_shortcut=True, name=None):
+    if conv_shortcut:
+        shortcut = Conv1D(filters, 1, strides=stride, name=name+'_0_conv')(x)
+        shortcut = BatchNormalization(name=name+'_0_bn')(shortcut)
+    else:
+        shortcut = x
 
-    # First convolution layer
-    x = Conv1D(filters, kernel_size, strides=strides, padding='same', name=name+'_conv1')(x)
-    x = BatchNormalization(name=name+'_bn1')(x)
-    x = Activation('relu')(x)
+    x = Conv1D(filters, kernel_size, padding='same', strides=stride, kernel_regularizer=l2(0.001), name=name+'_1_conv')(x)
+    x = BatchNormalization(name=name+'_1_bn')(x)
+    x = Activation('relu', name=name+'_1_relu')(x)
 
-    # Second convolution layer
-    x = Conv1D(filters, kernel_size, strides=1, padding='same', name=name+'_conv2')(x)
-    x = BatchNormalization(name=name+'_bn2')(x)
+    x = Conv1D(filters, kernel_size, padding='same', kernel_regularizer=l2(0.001), name=name+'_2_conv')(x)
+    x = BatchNormalization(name=name+'_2_bn')(x)
 
-    # Add shortcut to the output
-    x = x + shortcut
-    x = Activation('relu')(x)
-
+    x = Add()([shortcut, x])
+    x = Activation('relu', name=name+'_out')(x)
     return x
 
+def build_resnet_encoder(input_shape, filters=32, kernel_size=5, strides=2, out_activation='sigmoid',
+                     num_classes=1):
+    inputs = Input(shape=input_shape)
+    x = Conv1D(filters, kernel_size, strides=strides, padding='same', name='conv1')(inputs)
+    x = BatchNormalization(name='bn_conv1')(x)
+    x = Activation('relu')(x)
+   
+    x = residual_block(x, filters, name='res_block1')
+    x = MaxPooling1D(3, strides=strides, padding='same')(x)
 
+    x = residual_block(x, 64, name='res_block2')
+    x = MaxPooling1D(3, strides=strides, padding='same')(x)
 
+    x = Flatten()(x)
+    x = Dense(64, activation='relu')(x)
+    x = Dropout(0.5)(x)
+    x = Dense(num_classes, activation=out_activation)(x)
 
+    encoder = Model(inputs, x, name='encoder')
 
+    return encoder
 
+def build_decoder(latent_dim, output_shape):
+
+    encoded_input = Input(shape=(latent_dim,))
+    x = Dense(64, activation='relu')(encoded_input)
+    x = Dropout(0.5)(x)  # Add dropout layer with a dropout rate of 0.5
+    x = Dense(output_shape[0] * output_shape[1], activation='relu')(x)
+    x = Reshape(output_shape)(x)
+
+    decoder = Model(encoded_input, x, name='decoder')
+    return decoder
+
+def log_reg_model(X_train):
+    model = Sequential()
+    model.add(
+        Dense(
+            1, 
+            activation='sigmoid',  # Sigmoid activation for logistic regression
+            input_shape=(X_train.shape[1],)  # Input shape is 1D
+            )) 
+    model.compile(
+        optimizer='adam',
+        loss='binary_crossentropy',
+        metrics=[
+            AUC(name='auc'),
+            Precision(name='precision'),
+            Recall(name='recall')
+        ])
+    return model
 
 
 
@@ -125,28 +171,31 @@ if __name__ == "__main__":
     X_train_reshaped = reshape_data(X_train)
     X_test_reshaped = reshape_data(X_test)
     input_dim = X_train_reshaped.shape[1]
+    input_shape = (X_train_reshaped.shape[1], 1)
     # input_shape = (X_train_reshaped.shape[1], 1)
     encoding_dim = 64
 
-    input_layer = Input(shape=(input_dim, 1))
+    encoder = build_resnet_encoder(input_shape, filters=32, kernel_size=5, strides=2, out_activation='sigmoid', num_classes=64)
+    decoder = build_decoder(64, input_shape)
 
-    x = Flatten()(input_layer)
-    encoded = Dense(encoding_dim, activation='relu')(x)
+    latent_dim=64
+    autoencoder_input = Input(shape=input_shape)
+    encoded_output = encoder(autoencoder_input)
+    decoded_output = decoder(encoded_output)
 
-    # Decoder
-    x = Dense(input_dim, activation='sigmoid')(encoded)
-    decoded = Reshape((input_dim, 1))(x)
+    autoencoder = Model(autoencoder_input, decoded_output, name='autoencoder')
+    autoencoder.compile(optimizer='adam', loss='binary_crossentropy')
 
-    # Autoencoder model
-    autoencoder = Model(inputs=input_layer, outputs=decoded)
+    autoencoder.fit(X_train_reshaped, X_train_reshaped,
+                    epochs=5,
+                    batch_size=256,
+                    shuffle=True)
+    
+    # encoded = encoder.predict(X_train_reshaped)
+    # logreg = log_reg_model(encoded)
 
-    # Compile the model
-    autoencoder.compile(optimizer='adam', loss='mean_squared_error')
-
-    # Summary of the model
-    autoencoder.summary()
-
-    autoencoder.fit(X_train_reshaped, X_train_reshaped, epochs=50, batch_size=256, shuffle=True, validation_split=0.2)
+    
+    # fit_evaluate(logreg, X_train_reshaped, y_train, X_test_reshaped, y_test)
     
     
     
