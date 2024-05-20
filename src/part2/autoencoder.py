@@ -1,5 +1,5 @@
 from pathlib import Path
-from warnings import filters
+from secrets import randbelow
 
 from tensorflow.keras.utils import to_categorical
 
@@ -16,85 +16,16 @@ from tensorflow.keras.regularizers import l2
 from tensorflow.keras.layers import Input, Conv1D, BatchNormalization, Activation, MaxPooling1D, Flatten, Dense, Dropout, UpSampling1D, Reshape
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.layers import Reshape, Conv1DTranspose
+from tensorflow.keras.layers import Input, Dense, Reshape, BatchNormalization, LeakyReLU
 from tensorflow.keras.models import Model
-from tensorflow.keras.losses import MeanSquaredError
-import keras
-from keras import layers
-
 
 import numpy as np
 import pandas as pd
 from sklearn.metrics import auc, precision_recall_curve, roc_auc_score
 from sklearn.preprocessing import label_binarize
 import matplotlib.pyplot as plt
-
-
-
-def load_train_test(dpath="../../data/ptbdb/"):
-    df_train = pd.read_csv(dpath / 'train.csv', header=None)
-    df_test = pd.read_csv(dpath / 'test.csv', header=None)
-
-    # Train split
-    X_train = df_train.iloc[:, :-1]
-    y_train = df_train.iloc[:, -1]
-
-    # Test split
-    X_test = df_test.iloc[:, :-1]
-    y_test = df_test.iloc[:, -1]
-
-    return X_train, y_train, X_test, y_test
-
-# Define the residual block
-def residual_block(x, filters, kernel_size=3, stride=1, conv_shortcut=True, name=None):
-    if conv_shortcut:
-        shortcut = Conv1D(filters, 1, strides=stride, name=name+'_0_conv')(x)
-        shortcut = BatchNormalization(name=name+'_0_bn')(shortcut)
-    else:
-        shortcut = x
-
-    x = Conv1D(filters, kernel_size, padding='same', strides=stride, kernel_regularizer=l2(0.001), name=name+'_1_conv')(x)
-    x = BatchNormalization(name=name+'_1_bn')(x)
-    x = Activation('relu', name=name+'_1_relu')(x)
-
-    x = Conv1D(filters, kernel_size, padding='same', kernel_regularizer=l2(0.001), name=name+'_2_conv')(x)
-    x = BatchNormalization(name=name+'_2_bn')(x)
-
-    x = Add()([shortcut, x])
-    x = Activation('relu', name=name+'_out')(x)
-    return x
-
-# Define the encoder
-def build_resnet_encoder(input_shape, filters=32, kernel_size=5, strides=2, out_activation='sigmoid',
-                     num_classes=1):
-    inputs = Input(shape=input_shape)
-    x = Conv1D(filters, kernel_size, strides=strides, padding='same', name='conv1')(inputs)
-    x = BatchNormalization(name='bn_conv1')(x)
-    x = Activation('relu')(x)
-   
-    x = residual_block(x, filters, name='res_block1')
-    x = MaxPooling1D(3, strides=strides, padding='same')(x)
-
-    x = residual_block(x, 64, name='res_block2')
-    x = MaxPooling1D(3, strides=strides, padding='same')(x)
-
-    x = Flatten()(x)
-    x = Dense(64, activation='relu')(x)
-    x = Dropout(0.5)(x)
-    x = Dense(num_classes, activation=out_activation)(x)
-    encoder = Model(inputs, x, name='encoder')
-
-    return encoder
-
-# Define the decoder
-def build_decoder_1(latent_dim, output_shape):
-    encoded_input = Input(shape=(latent_dim,))
-    x = Dense(64, activation='relu')(encoded_input)
-    x = Dense(output_shape[0] * output_shape[1], activation='relu')(x)
-    x = Reshape(output_shape)(x)
-
-    decoder = Model(encoded_input, x, name='decoder')
-    return decoder
+import keras
+from keras import layers
 
 
 def load_train_test(dpath="../../data/ptbdb/"):
@@ -110,6 +41,7 @@ def load_train_test(dpath="../../data/ptbdb/"):
     y_test = df_test.iloc[:, -1]
 
     return X_train, y_train, X_test, y_test
+    
 
 
 # Reshape the data for LSTM
@@ -158,26 +90,93 @@ def fit_evaluate(model, X_train, y_train, X_test, y_test,
         print("Average AUPRC: {:.3f}".format(average_auprc))
 
 
+def residual_block(x, filters, kernel_size=3, stride=1, conv_shortcut=True, name=None):
+    if conv_shortcut:
+        shortcut = Conv1D(filters, 1, strides=stride, name=name+'_0_conv')(x)
+        shortcut = BatchNormalization(name=name+'_0_bn')(shortcut)
+    else:
+        shortcut = x
 
-# Main
+    x = Conv1D(filters, kernel_size, padding='same', strides=stride, kernel_regularizer=l2(0.001), name=name+'_1_conv')(x)
+    x = BatchNormalization(name=name+'_1_bn')(x)
+    x = Activation('relu', name=name+'_1_relu')(x)
+
+    x = Conv1D(filters, kernel_size, padding='same', kernel_regularizer=l2(0.001), name=name+'_2_conv')(x)
+    x = BatchNormalization(name=name+'_2_bn')(x)
+
+    x = Add()([shortcut, x])
+    x = Activation('relu', name=name+'_out')(x)
+    return x
+
+def build_resnet_encoder(input_shape, filters=32, kernel_size=5, strides=2, out_activation='sigmoid',
+                     num_classes=1):
+    inputs = Input(shape=input_shape)
+    x = Conv1D(filters, kernel_size, strides=strides, padding='same', name='conv1')(inputs)
+    x = BatchNormalization(name='bn_conv1')(x)
+    x = Activation('relu')(x)
+   
+    x = residual_block(x, filters, name='res_block1')
+    x = MaxPooling1D(3, strides=strides, padding='same')(x)
+
+    x = residual_block(x, 64, name='res_block2')
+    x = MaxPooling1D(3, strides=strides, padding='same')(x)
+
+    x = Flatten()(x)
+    x = Dense(64, activation='relu')(x)
+    x = Dropout(0.5)(x)
+    x = Dense(num_classes, activation=out_activation)(x)
+
+    encoder = Model(inputs, x, name='encoder')
+
+    return encoder
+
+def build_decoder(latent_dim, output_shape):
+
+    encoded_input = Input(shape=(latent_dim,))
+    x = Dense(64, activation='relu')(encoded_input)
+    x = Dropout(0.5)(x)  # Add dropout layer with a dropout rate of 0.5
+    x = Dense(output_shape[0] * output_shape[1], activation='relu')(x)
+    x = Reshape(output_shape)(x)
+
+    decoder = Model(encoded_input, x, name='decoder')
+    return decoder
+
+def log_reg_model(X_train):
+    model = Sequential()
+    model.add(
+        Dense(
+            1, 
+            activation='sigmoid',  # Sigmoid activation for logistic regression
+            input_shape=(X_train.shape[1],)  # Input shape is 1D
+            )) 
+    model.compile(
+        optimizer='adam',
+        loss='binary_crossentropy',
+        metrics=[
+            AUC(name='auc'),
+            Precision(name='precision'),
+            Recall(name='recall')
+        ])
+    return model
+
+
+
 if __name__ == "__main__":
     print("--- Representation Learning Q2.2 ---")
     # Load the data
-    dpath = Path("../../data/mitbih/")
+    dpath = Path("./data/mitbih/")
     X_train, y_train, X_test, y_test = load_train_test(dpath)
 
     # Reshape the data for CNNs
     X_train_reshaped = reshape_data(X_train)
     X_test_reshaped = reshape_data(X_test)
+    input_dim = X_train_reshaped.shape[1]
     input_shape = (X_train_reshaped.shape[1], 1)
-    
-    # One-hot encode the target
-    n_classes = 5
-    y_train_encoded = to_categorical(y_train, num_classes=n_classes)
-    y_test_encoded = to_categorical(y_test, num_classes=n_classes)
-    
-    encoder = build_resnet_encoder(input_shape, filters=32, kernel_size=5, strides=2, out_activation='sigmoid', num_classes = 64)
-    decoder = build_decoder_1(64, input_shape)
+    # input_shape = (X_train_reshaped.shape[1], 1)
+    encoding_dim = 64
+
+    encoder = build_resnet_encoder(input_shape, filters=32, kernel_size=5, strides=2, out_activation='sigmoid', num_classes=64)
+    decoder = build_decoder(64, input_shape)
 
     latent_dim=64
     autoencoder_input = Input(shape=input_shape)
@@ -188,11 +187,22 @@ if __name__ == "__main__":
     autoencoder.compile(optimizer='adam', loss='binary_crossentropy')
 
     autoencoder.fit(X_train_reshaped, X_train_reshaped,
-                    epochs=10,
+                    epochs=5,
                     batch_size=256,
                     shuffle=True)
+    
+    # encoded = encoder.predict(X_train_reshaped)
+    # logreg = log_reg_model(encoded)
 
+    
+    # fit_evaluate(logreg, X_train_reshaped, y_train, X_test_reshaped, y_test)
+    
+    
+    
+
+   
     
 
 
+    
   
