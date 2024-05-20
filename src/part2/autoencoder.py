@@ -2,11 +2,23 @@ from pathlib import Path
 from secrets import randbelow
 
 from tensorflow.keras.utils import to_categorical
+from sklearn.metrics import average_precision_score, roc_auc_score
+
+# from src.part1.cnn import build_resnet_cnn
+# from src.utils.utils import fit_evaluate, load_train_test, reshape_data
+
+from tensorflow.keras.layers import (Activation, Add, BatchNormalization,
+                                     Conv1D, Dense, Dropout, Flatten, Input,
+                                     MaxPooling1D)
 from tensorflow.keras.metrics import AUC, Precision, Recall
 from tensorflow.keras.models import Model, Sequential
 from tensorflow.keras.regularizers import l2
-from tensorflow.keras.layers import Input, Conv1D, BatchNormalization, Activation, MaxPooling1D, Flatten, Dense, Dropout, UpSampling1D, Reshape, Add, LeakyReLU
+
+from tensorflow.keras.layers import Input, Conv1D, BatchNormalization, Activation, MaxPooling1D, Flatten, Dense, Dropout, UpSampling1D, Reshape
+from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.layers import Input, Dense, Reshape, BatchNormalization, LeakyReLU
+from tensorflow.keras.models import Model
 
 import numpy as np
 import pandas as pd
@@ -15,6 +27,7 @@ from sklearn.preprocessing import label_binarize
 import matplotlib.pyplot as plt
 import keras
 from keras import layers
+
 
 
 def load_train_test(dpath="../../data/ptbdb/"):
@@ -32,6 +45,7 @@ def load_train_test(dpath="../../data/ptbdb/"):
     return X_train, y_train, X_test, y_test
     
 
+
 # Reshape the data for LSTM
 def reshape_data(X):
     return X.values.reshape((X.shape[0], X.shape[1], 1))
@@ -46,9 +60,9 @@ def fit_evaluate(model, X_train, y_train, X_test, y_test,
                   epochs=epochs, batch_size=batch_size,
                   validation_split=val_split)
 
-    predictions = model.predict(X_test)
+    predictions = np.array(model.predict(X_test))
 
-    roc_score = roc_auc_score(y_test, predictions)
+    roc_score = roc_auc_score(y_test, predictions, multi_class='ovo')
     print(f"ROC-AUC: {roc_score:.3f}")
 
     if num_classes == 1:
@@ -96,9 +110,7 @@ def residual_block(x, filters, kernel_size=3, stride=1, conv_shortcut=True, name
     x = Activation('relu', name=name+'_out')(x)
     return x
 
-
-def build_resnet_encoder(input_shape, filters=32, kernel_size=5, strides=2, out_activation='sigmoid',
-                     num_classes=1):
+def build_resnet_encoder(input_shape, num_classes, filters=32, kernel_size=5, strides=2, out_activation='sigmoid'):
     inputs = Input(shape=input_shape)
     x = Conv1D(filters, kernel_size, strides=strides, padding='same', name='conv1')(inputs)
     x = BatchNormalization(name='bn_conv1')(x)
@@ -113,13 +125,12 @@ def build_resnet_encoder(input_shape, filters=32, kernel_size=5, strides=2, out_
     x = Flatten()(x)
     x = Dense(64, activation='relu')(x)
     x = Dropout(0.5)(x)
-    x = Dense(num_classes, activation=out_activation)(x)
-
+   
     encoder = Model(inputs, x, name='encoder')
+
     return encoder
 
-
-def build_decoder(latent_dim, output_shape):
+def build_decoder(num_classes,latent_dim, output_shape):
 
     encoded_input = Input(shape=(latent_dim,))
     x = Dense(64, activation='relu')(encoded_input)
@@ -129,7 +140,6 @@ def build_decoder(latent_dim, output_shape):
 
     decoder = Model(encoded_input, x, name='decoder')
     return decoder
-
 
 def log_reg_model(X_train):
     model = Sequential()
@@ -150,6 +160,7 @@ def log_reg_model(X_train):
     return model
 
 
+
 if __name__ == "__main__":
     print("--- Representation Learning Q2.2 ---")
     # Load the data
@@ -159,11 +170,14 @@ if __name__ == "__main__":
     # Reshape the data for CNNs
     X_train_reshaped = reshape_data(X_train)
     X_test_reshaped = reshape_data(X_test)
+    input_dim = X_train_reshaped.shape[1]
     input_shape = (X_train_reshaped.shape[1], 1)
-    encoding_dim = 64
+    # input_shape = (X_train_reshaped.shape[1], 1)
+    latent_dim = 64
+    n_classes = 5
 
     encoder = build_resnet_encoder(input_shape, filters=32, kernel_size=5, strides=2, out_activation='sigmoid', num_classes=64)
-    decoder = build_decoder(64, input_shape)
+    decoder = build_decoder(num_classes = n_classes, latent_dim = latent_dim, output_shape = input_shape)
 
     latent_dim=64
     autoencoder_input = Input(shape=input_shape)
@@ -174,12 +188,72 @@ if __name__ == "__main__":
     autoencoder.compile(optimizer='adam', loss='binary_crossentropy')
 
     autoencoder.fit(X_train_reshaped, X_train_reshaped,
-                    epochs=5,
+                    epochs=2,
                     batch_size=256,
                     shuffle=True)
     
-    # encoded = encoder.predict(X_train_reshaped)
-    # logreg = log_reg_model(encoded)
+    #encoder representations
+    encoded = encoder.predict(X_train_reshaped)
+    test_encoded = encoder.predict(X_test_reshaped)
+    y_pred = log_reg_model(encoded)
 
     
-    # fit_evaluate(logreg, X_train_reshaped, y_train, X_test_reshaped, y_test)
+
+    # through autoencoder
+    # X_test_rep = autoencoder.predict(X_test_reshaped)
+    # logreg = log_reg_model(X_test_rep)
+    
+    # fit_evaluate(logreg, encoded, y_train, test_encoded, y_test)
+    
+    
+
+    dpath = Path("./data/ptbdb/")
+    ptb_X_train_unshaped, ptb_y_train, ptb_X_test_unshaped, ptb_y_test = load_train_test(dpath)
+    ptb_X_train = reshape_data(ptb_X_train_unshaped)
+    ptb_X_test = reshape_data(ptb_X_test_unshaped)
+
+    encoded = encoder.predict(ptb_X_train)
+    
+
+    for layer in encoder.layers:
+        layer.trainable = False
+    
+    inputs = Input(shape=input_shape)
+    
+    encoded_output = encoder(inputs)
+
+    # Add new output layer(s) for binary classification
+    x = Dense(1, activation='sigmoid')(encoded_output)
+
+    # Create the new model
+    new_encoder = Model(inputs, x)
+
+    autoencoder_input = Input(shape=input_shape)
+    encoded_output = new_encoder(autoencoder_input)
+    decoded_output = decoder(encoded_output)
+
+    autoencoder = Model(autoencoder_input, decoded_output, name='autoencoder')
+    autoencoder.compile(optimizer='adam', loss='binary_crossentropy')
+
+    autoencoder.fit(X_train_reshaped, X_train_reshaped,
+                    epochs=2,
+                    batch_size=256,
+                    shuffle=True)
+
+    y_pred = log_reg_model(X_test_reshaped)
+    
+    auprc_score = average_precision_score(y_test, y_pred)  # Replace y_test with your actual test labels
+    print("AUPRC Score:", auprc_score)
+
+   
+    
+    
+    
+    
+
+   
+    
+
+
+    
+  
