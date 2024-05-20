@@ -2,33 +2,22 @@ from pathlib import Path
 from warnings import filters
 
 from tensorflow.keras.utils import to_categorical
-
-# from src.part1.cnn import build_resnet_cnn
-# from src.utils.utils import fit_evaluate, load_train_test, reshape_data
-
-from tensorflow.keras.layers import (Activation, Add, BatchNormalization,
-                                     Conv1D, Dense, Dropout, Flatten, Input,
-                                     MaxPooling1D)
 from tensorflow.keras.metrics import AUC, Precision, Recall
 from tensorflow.keras.models import Model, Sequential
 from tensorflow.keras.regularizers import l2
-
-from tensorflow.keras.layers import Input, Conv1D, BatchNormalization, Activation, MaxPooling1D, Flatten, Dense, Dropout, UpSampling1D, Reshape
-from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Input, Conv1D, BatchNormalization, Activation, MaxPooling1D, Flatten, Dense, Dropout, UpSampling1D, Reshape, Add
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.layers import Reshape, Conv1DTranspose
-from tensorflow.keras.models import Model
 from tensorflow.keras.losses import MeanSquaredError
+
 import keras
 from keras import layers
-
 
 import numpy as np
 import pandas as pd
 from sklearn.metrics import auc, precision_recall_curve, roc_auc_score
 from sklearn.preprocessing import label_binarize
 import matplotlib.pyplot as plt
-
 
 
 def load_train_test(dpath="../../data/ptbdb/"):
@@ -44,6 +33,7 @@ def load_train_test(dpath="../../data/ptbdb/"):
     y_test = df_test.iloc[:, -1]
 
     return X_train, y_train, X_test, y_test
+
 
 # Define the residual block
 def residual_block(x, filters, kernel_size=3, stride=1, conv_shortcut=True, name=None):
@@ -64,6 +54,7 @@ def residual_block(x, filters, kernel_size=3, stride=1, conv_shortcut=True, name
     x = Activation('relu', name=name+'_out')(x)
     return x
 
+
 # Define the encoder
 def build_resnet_encoder(input_shape, filters=32, kernel_size=5, strides=2, out_activation='sigmoid',
                      num_classes=1):
@@ -83,8 +74,8 @@ def build_resnet_encoder(input_shape, filters=32, kernel_size=5, strides=2, out_
     x = Dropout(0.5)(x)
     x = Dense(num_classes, activation=out_activation)(x)
     encoder = Model(inputs, x, name='encoder')
-
     return encoder
+
 
 # Define the decoder
 def build_decoder_1(latent_dim, output_shape):
@@ -158,7 +149,6 @@ def fit_evaluate(model, X_train, y_train, X_test, y_test,
         print("Average AUPRC: {:.3f}".format(average_auprc))
 
 
-
 # Main
 if __name__ == "__main__":
     print("--- Representation Learning Q2.2 ---")
@@ -191,8 +181,3 @@ if __name__ == "__main__":
                     epochs=10,
                     batch_size=256,
                     shuffle=True)
-
-    
-
-
-  
