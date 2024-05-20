@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from tensorflow.keras.layers import (Activation, Add, BatchNormalization,
                                      Conv1D, Dense, Dropout, Flatten, Input,
-                                     MaxPooling1D)
+                                     MaxPooling1D, Reshape)
 from tensorflow.keras.models import Model, Sequential
 from tensorflow.keras.regularizers import l2
 from tensorflow.keras.utils import to_categorical
@@ -129,6 +129,41 @@ def visualize_representations(encoder, dataset, labels, title, filename):
     plt.legend(title='Labels', loc='upper right')
     plt.savefig(filename)
 
+
+def build_resnet_encoder(input_shape, filters=32, kernel_size=5, strides=2, out_activation='sigmoid',
+                     num_classes=1):
+    inputs = Input(shape=input_shape)
+    x = Conv1D(filters, kernel_size, strides=strides, padding='same', name='conv1')(inputs)
+    x = BatchNormalization(name='bn_conv1')(x)
+    x = Activation('relu')(x)
+   
+    x = residual_block(x, filters, name='res_block1')
+    x = MaxPooling1D(3, strides=strides, padding='same')(x)
+
+    x = residual_block(x, 64, name='res_block2')
+    x = MaxPooling1D(3, strides=strides, padding='same')(x)
+
+    x = Flatten()(x)
+    x = Dense(64, activation='relu')(x)
+    x = Dropout(0.5)(x)
+    x = Dense(num_classes, activation=out_activation)(x)
+
+    encoder = Model(inputs, x, name='encoder')
+    return encoder
+
+
+def build_decoder(latent_dim, output_shape):
+
+    encoded_input = Input(shape=(latent_dim,))
+    x = Dense(64, activation='relu')(encoded_input)
+    x = Dropout(0.5)(x)  # Add dropout layer with a dropout rate of 0.5
+    x = Dense(output_shape[0] * output_shape[1], activation='relu')(x)
+    x = Reshape(output_shape)(x)
+
+    decoder = Model(encoded_input, x, name='decoder')
+    return decoder
+
+
 # Main
 if __name__ == "__main__":
     ######## MITBIH #######################################
@@ -172,3 +207,27 @@ if __name__ == "__main__":
     # Visualize learned representations for the subset of the MIT-BIH dataset using the encoder
     visualize_representations(resnet_encoder, X_train_mitbih_subset, y_train_mitbih_subset, 'Learned Representations - MIT-BIH (Subset)', "RESNET-MITBIH.png")
     visualize_representations(resnet_encoder, X_train_ptbdb_subset, y_train_ptbdb_subset, 'Learned Representations - PTBDB (Subset)', "RESNET-PTBDB.png")
+
+    ## AUTOENCODER STUFF ##################################
+
+    input_shape = (X_train_mitbih_reshaped.shape[1], 1)
+    encoding_dim = 64
+
+    encoder = build_resnet_encoder(input_shape, filters=32, kernel_size=5, strides=2, out_activation='sigmoid', num_classes=64)
+    decoder = build_decoder(64, input_shape)
+
+    latent_dim=64
+    autoencoder_input = Input(shape=input_shape)
+    encoded_output = encoder(autoencoder_input)
+    decoded_output = decoder(encoded_output)
+
+    autoencoder = Model(autoencoder_input, decoded_output, name='autoencoder')
+    autoencoder.compile(optimizer='adam', loss='binary_crossentropy')
+
+    autoencoder.fit(X_train_mitbih_reshaped, X_train_mitbih_reshaped,
+                    epochs=5,
+                    batch_size=256,
+                    shuffle=True)
+    
+    visualize_representations(encoder, X_train_mitbih_subset, y_train_mitbih_subset, 'Learned Representations - MIT-BIH (Subset)', "Autoencoder-MITBIH.png")
+    visualize_representations(encoder, X_train_ptbdb_subset, y_train_ptbdb_subset, 'Learned Representations - PTBDB (Subset)', "Autoencoder-PTBDB.png")

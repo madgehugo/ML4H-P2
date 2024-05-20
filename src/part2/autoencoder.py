@@ -159,9 +159,7 @@ if __name__ == "__main__":
     # Reshape the data for CNNs
     X_train_reshaped = reshape_data(X_train)
     X_test_reshaped = reshape_data(X_test)
-    input_dim = X_train_reshaped.shape[1]
     input_shape = (X_train_reshaped.shape[1], 1)
-    # input_shape = (X_train_reshaped.shape[1], 1)
     encoding_dim = 64
 
     encoder = build_resnet_encoder(input_shape, filters=32, kernel_size=5, strides=2, out_activation='sigmoid', num_classes=64)
