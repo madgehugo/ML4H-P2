@@ -12,8 +12,8 @@ from sklearn.preprocessing import label_binarize
 from tensorflow.keras.layers import Activation, Add, BatchNormalization, Conv1D, Dense, Dropout, Flatten, Input, MaxPooling1D
 from tensorflow.keras.models import Model
 from tensorflow.keras.regularizers import l2
+from tensorflow.keras.callbacks import EarlyStopping
 from tqdm import tqdm
-
 
 def load_train_test(dpath="../../data/mitbih/"):
     df_train = pd.read_csv(dpath / 'train.csv', header=None)
@@ -31,18 +31,23 @@ def load_train_test(dpath="../../data/mitbih/"):
 
     return X_train, y_train, X_test, y_test
 
-
 def reshape_data(X):
     return X.values.reshape((X.shape[0], X.shape[1], 1))
-
 
 def fit_evaluate(model, X_train, y_train, X_test, y_test,
                  epochs=50, batch_size=64, val_split=0.1,
                  num_classes=1):
 
+    # Class weights to handle imbalance
+    class_weights = dict(enumerate(len(y_train) / (5 * np.bincount(y_train))))
+
+    early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+
     _ = model.fit(X_train, y_train,
                   epochs=epochs, batch_size=batch_size,
-                  validation_split=val_split)
+                  validation_split=val_split,
+                  class_weight=class_weights,
+                  callbacks=[early_stopping])
 
     predictions = model.predict(X_test)
 
@@ -74,7 +79,10 @@ def fit_evaluate(model, X_train, y_train, X_test, y_test,
         average_auprc = np.mean(auprc_scores)
 
         print("Average AUPRC: {:.3f}".format(average_auprc))
-
+        
+        # Calculate ROC-AUC for multi-class
+        roc_score = roc_auc_score(y_test_binarized, predictions, multi_class='ovr')
+        print(f"Multi-class ROC-AUC: {roc_score:.3f}")
 
 def residual_block(x, filters, kernel_size=3, stride=1,
                    conv_shortcut=True, name=None):
@@ -169,6 +177,6 @@ if __name__ == "__main__":
     # Build ResNet encoder
     resnet_encoder = build_resnet_encoder(input_shape)
     resnet_encoder.summary()
-    fit_evaluate(resnet_encoder, X_train_reshaped, y_train, X_test_reshaped, y_test, epochs=10, num_classes=5)
+    fit_evaluate(resnet_encoder, X_train_reshaped, y_train, X_test_reshaped, y_test, epochs=1, num_classes=5)
     # Visualize learned representations for MIT-BIH dataset using the encoder
     visualize_representations(resnet_encoder, X_train_reshaped[:1000], y_train[:1000], 'Learned Representations - MIT-BIH')

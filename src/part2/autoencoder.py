@@ -2,19 +2,10 @@ from pathlib import Path
 from secrets import randbelow
 
 from tensorflow.keras.utils import to_categorical
-
-# from src.part1.cnn import build_resnet_cnn
-# from src.utils.utils import fit_evaluate, load_train_test, reshape_data
-
-from tensorflow.keras.layers import (Activation, Add, BatchNormalization,
-                                     Conv1D, Dense, Dropout, Flatten, Input,
-                                     MaxPooling1D)
 from tensorflow.keras.metrics import AUC, Precision, Recall
 from tensorflow.keras.models import Model, Sequential
 from tensorflow.keras.regularizers import l2
-
-from tensorflow.keras.layers import Input, Conv1D, BatchNormalization, Activation, MaxPooling1D, Flatten, Dense, Dropout, UpSampling1D, Reshape
-from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Input, Conv1D, BatchNormalization, Activation, MaxPooling1D, Flatten, Dense, Dropout, UpSampling1D, Reshape, Add
 from tensorflow.keras.optimizers import Adam
 
 import numpy as np
@@ -22,7 +13,6 @@ import pandas as pd
 from sklearn.metrics import auc, precision_recall_curve, roc_auc_score
 from sklearn.preprocessing import label_binarize
 import matplotlib.pyplot as plt
-
 
 
 def load_train_test(dpath="../../data/ptbdb/"):
@@ -39,7 +29,6 @@ def load_train_test(dpath="../../data/ptbdb/"):
 
     return X_train, y_train, X_test, y_test
     
-
 
 # Reshape the data for LSTM
 def reshape_data(X):
@@ -108,17 +97,10 @@ def residual_block(x, filters, kernel_size=3, strides=1, name='name'):
     return x
 
 
-
-
-
-
-
-
-
 if __name__ == "__main__":
     print("--- Representation Learning Q2.2 ---")
     # Load the data
-    dpath = Path("./data/mitbih/")
+    dpath = Path("../../data/mitbih/")
     X_train, y_train, X_test, y_test = load_train_test(dpath)
 
     # Reshape the data for CNNs
@@ -146,14 +128,4 @@ if __name__ == "__main__":
     # Summary of the model
     autoencoder.summary()
 
-    autoencoder.fit(X_train_reshaped, X_train_reshaped, epochs=50, batch_size=256, shuffle=True, validation_split=0.2)
-    
-    
-    
-
-   
-    
-
-
-    
-  
+    autoencoder.fit(X_train_reshaped, X_train_reshaped, epochs=5, batch_size=256, shuffle=True, validation_split=0.2)
