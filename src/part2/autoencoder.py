@@ -2,22 +2,11 @@ from pathlib import Path
 from secrets import randbelow
 
 from tensorflow.keras.utils import to_categorical
-
-# from src.part1.cnn import build_resnet_cnn
-# from src.utils.utils import fit_evaluate, load_train_test, reshape_data
-
-from tensorflow.keras.layers import (Activation, Add, BatchNormalization,
-                                     Conv1D, Dense, Dropout, Flatten, Input,
-                                     MaxPooling1D)
 from tensorflow.keras.metrics import AUC, Precision, Recall
 from tensorflow.keras.models import Model, Sequential
 from tensorflow.keras.regularizers import l2
-
-from tensorflow.keras.layers import Input, Conv1D, BatchNormalization, Activation, MaxPooling1D, Flatten, Dense, Dropout, UpSampling1D, Reshape
-from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Input, Conv1D, BatchNormalization, Activation, MaxPooling1D, Flatten, Dense, Dropout, UpSampling1D, Reshape, Add, LeakyReLU
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.layers import Input, Dense, Reshape, BatchNormalization, LeakyReLU
-from tensorflow.keras.models import Model
 
 import numpy as np
 import pandas as pd
