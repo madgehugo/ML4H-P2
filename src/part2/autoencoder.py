@@ -32,7 +32,6 @@ def load_train_test(dpath="../../data/ptbdb/"):
     return X_train, y_train, X_test, y_test
     
 
-
 # Reshape the data for LSTM
 def reshape_data(X):
     return X.values.reshape((X.shape[0], X.shape[1], 1))
@@ -97,6 +96,7 @@ def residual_block(x, filters, kernel_size=3, stride=1, conv_shortcut=True, name
     x = Activation('relu', name=name+'_out')(x)
     return x
 
+
 def build_resnet_encoder(input_shape, filters=32, kernel_size=5, strides=2, out_activation='sigmoid',
                      num_classes=1):
     inputs = Input(shape=input_shape)
@@ -116,8 +116,8 @@ def build_resnet_encoder(input_shape, filters=32, kernel_size=5, strides=2, out_
     x = Dense(num_classes, activation=out_activation)(x)
 
     encoder = Model(inputs, x, name='encoder')
-
     return encoder
+
 
 def build_decoder(latent_dim, output_shape):
 
@@ -129,6 +129,7 @@ def build_decoder(latent_dim, output_shape):
 
     decoder = Model(encoded_input, x, name='decoder')
     return decoder
+
 
 def log_reg_model(X_train):
     model = Sequential()
@@ -147,7 +148,6 @@ def log_reg_model(X_train):
             Recall(name='recall')
         ])
     return model
-
 
 
 if __name__ == "__main__":
@@ -185,13 +185,3 @@ if __name__ == "__main__":
 
     
     # fit_evaluate(logreg, X_train_reshaped, y_train, X_test_reshaped, y_test)
-    
-    
-    
-
-   
-    
-
-
-    
-  
