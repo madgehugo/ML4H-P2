@@ -30,12 +30,12 @@ Relevant scripts have been placed within the appropriate folder (part1 or part2)
 
 | Task 2 | part2/ |
 | ------------- | ------------- |
-| 2.1  | cnn_transfer.py  |
-| 2.2  | classic_representation.py  |
-| 2.3  | viz-encoders.py  |
-| 2.4.1  | autoencoder.py |
-| 2.4.2 A  | autoencoder.py  |
-| 2.4.2 B  | encoder-extended-ptb-full.py  |
-| 2.4.2 C  | encoder-extended-ptb-sep.py  |
+| 2.1  | cnn_transfer.py |
+| 2.2  | cnn_encoder_mitbih.py |
+| 2.3  | viz-encoders.py |
+| 2.4.1  | autoencoder.py + cnn_encoder.py |
+| 2.4.2 A  | autoencoder.py + cnn_encoder.py |
+| 2.4.2 B  | encoder-extended-ptb-full.py + cnn_encoder_full.py |
+| 2.4.2 C  | encoder-extended-ptb-sep.py + cnn_encoder_sep.py |
 
 The required packages to run the scripts can be found in the `requirements.txt` file.

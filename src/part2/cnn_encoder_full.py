@@ -1,10 +1,10 @@
-### 2.2. part 2 #######
-
 from pathlib import Path
 from secrets import randbelow
+import tensorflow as tf
+
 
 from tensorflow.keras.utils import to_categorical
-from sklearn.metrics import average_precision_score, roc_auc_score
+from sklearn.metrics import average_precision_score, roc_auc_score, roc_curve
 
 # from src.part1.cnn import build_resnet_cnn
 # from src.utils.utils import fit_evaluate, load_train_test, reshape_data
@@ -31,6 +31,7 @@ import keras
 from keras import layers
 
 
+
 def load_train_test(dpath="../../data/ptbdb/"):
     df_train = pd.read_csv(dpath / 'train.csv', header=None)
     df_test = pd.read_csv(dpath / 'test.csv', header=None)
@@ -45,16 +46,15 @@ def load_train_test(dpath="../../data/ptbdb/"):
 
     return X_train, y_train, X_test, y_test
     
-
 # Reshape the data for LSTM
 def reshape_data(X):
     return X.values.reshape((X.shape[0], X.shape[1], 1))
 
 
 # Fit and evaluate models
-def fit_evaluate(model, X_train, y_train, X_test, y_test,
-                 epochs=50, batch_size=64, val_split=0.1,
-                 num_classes=1):
+def fit_evaluate(model, X_train, y_train, X_test, y_test,num_classes,
+                 epochs=50, batch_size=64, val_split=0.1
+                 ):
 
     _ = model.fit(X_train, y_train,
                   epochs=epochs, batch_size=batch_size,
@@ -62,7 +62,7 @@ def fit_evaluate(model, X_train, y_train, X_test, y_test,
 
     predictions = np.array(model.predict(X_test))
 
-    roc_score = roc_auc_score(y_test, predictions, multi_class='ovo')
+    roc_score = roc_auc_score(y_test, predictions, multi_class = 'ovr')
     print(f"ROC-AUC: {roc_score:.3f}")
 
     if num_classes == 1:
@@ -110,27 +110,39 @@ def residual_block(x, filters, kernel_size=3, stride=1, conv_shortcut=True, name
     x = Activation('relu', name=name+'_out')(x)
     return x
 
-
-def build_resnet_encoder(input_shape, num_classes, filters=32, kernel_size=5, strides=2, out_activation='sigmoid'):
+def build_resnet_cnn(input_shape, filters=32, kernel_size=5, strides=2,
+                     loss='categorical_crossentropy', out_activation='softmax',
+                     num_classes=5):
     inputs = Input(shape=input_shape)
-    x = Conv1D(filters, kernel_size, strides=strides, padding='same', name='conv1')(inputs)
+
+    # Initial conv block
+    x = Conv1D(filters, kernel_size, strides=strides,
+               padding='same', name='conv1')(inputs)
     x = BatchNormalization(name='bn_conv1')(x)
     x = Activation('relu')(x)
-   
+
+    # Residual blocks
     x = residual_block(x, filters, name='res_block1')
     x = MaxPooling1D(3, strides=strides, padding='same')(x)
 
     x = residual_block(x, 64, name='res_block2')
     x = MaxPooling1D(3, strides=strides, padding='same')(x)
 
+    # Final layers
     x = Flatten()(x)
     x = Dense(64, activation='relu')(x)
     x = Dropout(0.5)(x)
-   
-    encoder = Model(inputs, x, name='encoder')
+    outputs = Dense(num_classes, activation=out_activation)(x)
 
+    model = Model(inputs, outputs)
+    model.compile(optimizer='adam',
+                  loss=loss,
+                  metrics=['accuracy', AUC(name='auc'), AUC(name='auprc', curve='PR'), Precision(name='precision'), Recall(name='recall')])
+    return model
+
+def extract_encoder(full_model, input_shape):
+    encoder = Model(inputs=full_model.input, outputs=full_model.get_layer('flatten').output)
     return encoder
-
 
 def build_decoder(num_classes,latent_dim, output_shape):
 
@@ -143,7 +155,6 @@ def build_decoder(num_classes,latent_dim, output_shape):
     decoder = Model(encoded_input, x, name='decoder')
     return decoder
 
-
 def log_reg_model(X_train):
     model = Sequential()
     model.add(
@@ -154,7 +165,7 @@ def log_reg_model(X_train):
             )) 
     model.compile(
         optimizer='adam',
-        loss='binary_crossentropy',
+        loss='categorical_crossentropy',
         metrics=[
             AUC(name='auc'),
             Precision(name='precision'),
@@ -174,34 +185,53 @@ if __name__ == "__main__":
     X_test_reshaped = reshape_data(X_test)
     input_dim = X_train_reshaped.shape[1]
     input_shape = (X_train_reshaped.shape[1], 1)
-    # input_shape = (X_train_reshaped.shape[1], 1)
+
     latent_dim = 64
     n_classes = 5
 
-    encoder = build_resnet_encoder(input_shape, filters=32, kernel_size=5, strides=2, out_activation='sigmoid', num_classes=64)
-    decoder = build_decoder(num_classes = n_classes, latent_dim = latent_dim, output_shape = input_shape)
-
-    latent_dim=64
-    autoencoder_input = Input(shape=input_shape)
-    encoded_output = encoder(autoencoder_input)
-    decoded_output = decoder(encoded_output)
-
-    autoencoder = Model(autoencoder_input, decoded_output, name='autoencoder')
-    autoencoder.compile(optimizer='adam', loss='mean_squared_error')
-
-    autoencoder.fit(X_train_reshaped, X_train_reshaped,
-                    epochs=1,
-                    batch_size=256,
-                    shuffle=True)
+    y_train_oh= to_categorical(y_train, num_classes=n_classes)
+    y_test_oh = to_categorical(y_test, num_classes=n_classes)
     
-    #encoder representations
-    encoded = encoder.predict(X_train_reshaped)
-    encoded = encoded.reshape((encoded.shape[0], encoded.shape[1], 1))
-    test_encoded = encoder.predict(X_test_reshaped)
-    test_encoded = test_encoded.reshape((test_encoded.shape[0], test_encoded.shape[1], 1))
-    print(encoded[:5])
-    logreg = log_reg_model(encoded)
-    
-    fit_evaluate(logreg, encoded, y_train, test_encoded, y_test)
+    resnet_model = build_resnet_cnn(input_shape, num_classes=n_classes)
+    fit_evaluate(resnet_model, X_train, y_train_oh, X_test, y_test_oh, epochs=1, num_classes=n_classes)
 
-  
+    # Extract the encoder from the trained ResNet model
+    resnet_encoder = extract_encoder(resnet_model, input_shape)
+    
+
+    dpath = Path("../../data/ptbdb/")
+    ptb_X_train_unshaped, ptb_y_train, ptb_X_test_unshaped, ptb_y_test = load_train_test(dpath)
+    ptb_X_train = reshape_data(ptb_X_train_unshaped)
+    ptb_X_test = reshape_data(ptb_X_test_unshaped)
+
+
+    inputs = Input(shape=input_shape)
+    
+    encoded_output = resnet_encoder(inputs)
+    output = Dense(1, activation='sigmoid')(encoded_output)
+
+
+    # Create the new model
+    new_encoder = Model(inputs, output)
+
+    # Compile the new model
+    new_encoder.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+
+
+    # Train the new model on the new dataset
+    new_encoder.fit(ptb_X_train, ptb_y_train, epochs=10, batch_size=32, validation_split=0.2)
+    predictions = new_encoder.predict(ptb_X_test)
+
+    print("-------predictions----------")
+    print (predictions[:10])
+
+    print("-----------y_test-----------")
+    print(ptb_y_test[:10])
+
+    auroc_score = roc_auc_score(ptb_y_test, predictions) 
+    print("-----------auroc -----------")
+    print(auroc_score)
+
+    auprc_score = average_precision_score(ptb_y_test, predictions)
+    print("-----------auprc-----------")
+    print(auprc_score)
