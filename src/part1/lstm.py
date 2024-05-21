@@ -8,16 +8,14 @@ from tensorflow.keras.models import Sequential
 from src.utils.utils import fit_evaluate, load_train_test, reshape_data
 
 
-# Define the LSTM models
+# Define the log_reg model
 def log_reg_model(X_train):
     model = Sequential()
-    model.add(
-        Dense(
-            2, 
-            activation='softmax',
-            kernel_regularizer=L1L2(l1=0.0, l2=0.1),
-            input_dim=len(feature_vector)
-            )) # input dimension = number of features your data has
+    model.add(Dense(2,
+                    activation='softmax',
+                    kernel_regularizer=L1L2(l1=0.0, l2=0.1),
+                    input_dim=len(feature_vector)
+                    ))
     model.compile(
         optimizer='adam',
         loss='binary_crossentropy',
@@ -26,6 +24,26 @@ def log_reg_model(X_train):
             Precision(name='precision'),
             Recall(name='recall')
         ])
+    return model
+
+
+# Define the LSTM models
+def lstm_model(X_train):
+    model = Sequential()
+    model.add(LSTM(units=64, return_sequences=True,
+                   input_shape=(X_train.shape[1], X_train.shape[2])))
+    model.add(Dropout(0.5))
+    model.add(LSTM(units=32))
+    model.add(Dropout(0.5))
+    model.add(Dense(units=1, activation='sigmoid'))
+
+    model.compile(optimizer='adam',
+                  loss='binary_crossentropy',
+                  metrics=[
+                      AUC(name='auc'),
+                      Precision(name='precision'),
+                      Recall(name='recall')
+                  ])
     return model
 
 
