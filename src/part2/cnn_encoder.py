@@ -30,8 +30,6 @@ import matplotlib.pyplot as plt
 import keras
 from keras import layers
 
-
-
 def load_train_test(dpath="../../data/ptbdb/"):
     df_train = pd.read_csv(dpath / 'train.csv', header=None)
     df_test = pd.read_csv(dpath / 'test.csv', header=None)
@@ -46,12 +44,9 @@ def load_train_test(dpath="../../data/ptbdb/"):
 
     return X_train, y_train, X_test, y_test
     
-
-
 # Reshape the data for LSTM
 def reshape_data(X):
     return X.values.reshape((X.shape[0], X.shape[1], 1))
-
 
 # Fit and evaluate models
 def fit_evaluate(model, X_train, y_train, X_test, y_test,num_classes,
@@ -93,7 +88,6 @@ def fit_evaluate(model, X_train, y_train, X_test, y_test,num_classes,
 
         print("Average AUPRC: {:.3f}".format(average_auprc))
 
-
 def residual_block(x, filters, kernel_size=3, stride=1, conv_shortcut=True, name=None):
     if conv_shortcut:
         shortcut = Conv1D(filters, 1, strides=stride, name=name+'_0_conv')(x)
@@ -112,36 +106,35 @@ def residual_block(x, filters, kernel_size=3, stride=1, conv_shortcut=True, name
     x = Activation('relu', name=name+'_out')(x)
     return x
 
-def build_resnet_encoder(input_shape, num_classes, filters=32, kernel_size=5, strides=2, out_activation='sigmoid'):
+def build_resnet_cnn(input_shape, filters=32, kernel_size=5, strides=2,
+                     loss='categorical_crossentropy', out_activation='softmax',
+                     num_classes=5):
     inputs = Input(shape=input_shape)
-    x = Conv1D(filters, kernel_size, strides=strides, padding='same', name='conv1')(inputs)
+
+    # Initial conv block
+    x = Conv1D(filters, kernel_size, strides=strides,
+               padding='same', name='conv1')(inputs)
     x = BatchNormalization(name='bn_conv1')(x)
     x = Activation('relu')(x)
-   
+
+    # Residual blocks
     x = residual_block(x, filters, name='res_block1')
     x = MaxPooling1D(3, strides=strides, padding='same')(x)
 
     x = residual_block(x, 64, name='res_block2')
     x = MaxPooling1D(3, strides=strides, padding='same')(x)
 
+    # Final layers
     x = Flatten()(x)
     x = Dense(64, activation='relu')(x)
-    #x = Dropout(0.5)(x)
-   
-    encoder = Model(inputs, x, name='encoder')
+    x = Dropout(0.5)(x)
+    outputs = Dense(num_classes, activation=out_activation)(x)
 
-    return encoder
-
-def build_decoder(num_classes,latent_dim, output_shape):
-
-    encoded_input = Input(shape=(latent_dim,))
-    x = Dense(64, activation='relu')(encoded_input)
-    x = Dropout(0.5)(x)  # Add dropout layer with a dropout rate of 0.5
-    x = Dense(output_shape[0] * output_shape[1], activation='relu')(x)
-    x = Reshape(output_shape)(x)
-
-    decoder = Model(encoded_input, x, name='decoder')
-    return decoder
+    model = Model(inputs, outputs)
+    model.compile(optimizer='adam',
+                  loss=loss,
+                  metrics=['accuracy', AUC(name='auc'), AUC(name='auprc', curve='PR'), Precision(name='precision'), Recall(name='recall')])
+    return model
 
 def log_reg_model(X_train):
     model = Sequential()
@@ -171,8 +164,6 @@ def fit_model(model, X_train, y_train, epochs=10, batch_size=64, val_split=0.1):
               validation_split=val_split)
 
 
-
-
 if __name__ == "__main__":
     print("--- Representation Learning Q2.2 ---")
     # Load the data
@@ -185,71 +176,46 @@ if __name__ == "__main__":
     input_dim = X_train_reshaped.shape[1]
     input_shape = (X_train_reshaped.shape[1], 1)
     
-    ######## Fit autoencoder ##################
     latent_dim = 64
     n_classes = 5
-
-    ae_encoder = build_resnet_encoder(input_shape, filters=32, kernel_size=5, strides=2, out_activation='sigmoid', num_classes=64)
-    ae_decoder = build_decoder(num_classes = n_classes, latent_dim = latent_dim, output_shape = input_shape)
-
-    latent_dim=64
-    autoencoder_input = Input(shape=input_shape)
-    ae_encoded_output = ae_encoder(autoencoder_input)
-    ae_decoded_output = ae_decoder(ae_encoded_output)
-
-    autoencoder = Model(autoencoder_input, ae_decoded_output, name='autoencoder')
-    autoencoder.compile(optimizer='adam', loss='binary_crossentropy')
-
-    autoencoder.fit(X_train_reshaped, X_train_reshaped,
-                    epochs=50,
-                    batch_size=256,
-                    shuffle=True)
-    ############################################
-
-
-    ######## Fit CNN encoder ###################
-    #encoder representations
-    # encoded = encoder.predict(X_train_reshaped)
-    # test_encoded = encoder.predict(X_test_reshaped)
-
-    # logreg = log_reg_model(encoded)
 
     y_train_oh= to_categorical(y_train, num_classes=n_classes)
     y_test_oh = to_categorical(y_test, num_classes=n_classes)
     
-    resnet_model = build_resnet_encoder(input_shape, num_classes=n_classes)
-    fit_model(resnet_model, X_train, y_train_oh, epochs=1)
+    resnet_model = build_resnet_cnn(input_shape, num_classes=n_classes)
+    fit_evaluate(resnet_model, X_train, y_train_oh, X_test, y_test_oh, epochs=1, num_classes=n_classes)
 
     # Extract the encoder from the trained ResNet model
     resnet_encoder = extract_encoder(resnet_model, input_shape)
     
-    #############################################
 
+    ## Load ptbdb data
     dpath = Path("../../data/ptbdb/")
     ptb_X_train_unshaped, ptb_y_train, ptb_X_test_unshaped, ptb_y_test = load_train_test(dpath)
     ptb_X_train = reshape_data(ptb_X_train_unshaped)
     ptb_X_test = reshape_data(ptb_X_test_unshaped)
 
-    print("------shape ptb X train------")
-    print(ptb_X_train.shape)
+    #print("------shape ptb X train------")
+    #print(ptb_X_train.shape)
 
-    print("------shape ptb X train unshaped------")
-    print(ptb_X_train_unshaped.shape)
+    #print("------shape ptb X train unshaped------")
+    #print(ptb_X_train_unshaped.shape)
 
-    ae_encoded_train = ae_encoder.predict(ptb_X_train)
-    
-    ae_encoded_test = ae_encoder.predict(ptb_X_test)
-    
-    logreg = log_reg_model(ae_encoded_train)
-    fit_evaluate(logreg, ae_encoded_train, ptb_y_train, ae_encoded_test, ptb_y_test,num_classes=1,
+    ## Logreg of encoded ptbdb
+    resnet_encoded_train = resnet_encoder.predict(ptb_X_train)
+    resnet_encoded_test = resnet_encoder.predict(ptb_X_test)
+    logreg = log_reg_model(resnet_encoded_train)
+    print("Start log. reg. results")
+    fit_evaluate(logreg, resnet_encoded_train, ptb_y_train, resnet_encoded_test, ptb_y_test,num_classes=1,
                  epochs=50, batch_size=64, val_split=0.1)
-    
+    print("End log. reg. results")
 
-    for layer in ae_encoder.layers:
+
+    for layer in resnet_encoder.layers:
         layer.trainable = False
     
     inputs = Input(shape=input_shape)
-    encoded_output = ae_encoder(inputs)
+    encoded_output = resnet_encoder(inputs)
     output = Dense(1, activation='sigmoid')(encoded_output)
 
 
