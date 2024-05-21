@@ -167,7 +167,7 @@ def log_reg_model(X_train):
 if __name__ == "__main__":
     print("--- Representation Learning Q2.2 ---")
     # Load the data
-    dpath = Path("./data/mitbih/")
+    dpath = Path("../../data/mitbih/")
     X_train, y_train, X_test, y_test = load_train_test(dpath)
 
     # Reshape the data for CNNs
@@ -207,7 +207,7 @@ if __name__ == "__main__":
     fit_evaluate(logreg, encoded, y_train_oh, test_encoded, y_test_oh, num_classes=5)
     
 
-    dpath = Path("./data/ptbdb/")
+    dpath = Path("../../data/ptbdb/")
     ptb_X_train_unshaped, ptb_y_train, ptb_X_test_unshaped, ptb_y_test = load_train_test(dpath)
     ptb_X_train = reshape_data(ptb_X_train_unshaped)
     ptb_X_test = reshape_data(ptb_X_test_unshaped)
