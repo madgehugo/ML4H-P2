@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
+from sklearn.metrics import silhouette_score
 import matplotlib.pyplot as plt
 import seaborn as sns
 from tensorflow.keras.layers import (Activation, Add, BatchNormalization,
@@ -14,6 +15,10 @@ from tensorflow.keras.utils import to_categorical
 from tensorflow.keras.metrics import AUC, Precision, Recall
 from tensorflow.keras.optimizers import Adam
 from tqdm import tqdm
+
+from sklearn.metrics import auc, precision_recall_curve, roc_auc_score
+from sklearn.preprocessing import label_binarize
+
 
 def load_train_test(dpath="../../data/mitbih/"):
     df_train = pd.read_csv(dpath / 'train.csv', header=None)
@@ -120,15 +125,18 @@ def visualize_representations(encoder, dataset, labels, title, filename):
     tsne = TSNE(n_components=2, random_state=42)
     reduced_repr = tsne.fit_transform(reduced_repr)
 
+    # Calculate silhouette score
+    silhouette_avg = silhouette_score(reduced_repr, subset_labels)
+    print(f'Silhouette Score: {silhouette_avg}')
+
     # Plot
     plt.figure(figsize=(10, 8))
     sns.scatterplot(x=reduced_repr[:, 0], y=reduced_repr[:, 1], hue=subset_labels, palette='viridis', legend='full')
-    plt.title(title)
+    plt.title(f'{title}\nSilhouette Score: {silhouette_avg:.2f}')
     plt.xlabel('Dimension 1')
     plt.ylabel('Dimension 2')
     plt.legend(title='Labels', loc='upper right')
     plt.savefig(filename)
-
 
 def build_resnet_encoder(input_shape, filters=32, kernel_size=5, strides=2, out_activation='sigmoid',
                      num_classes=1):
@@ -151,7 +159,6 @@ def build_resnet_encoder(input_shape, filters=32, kernel_size=5, strides=2, out_
     encoder = Model(inputs, x, name='encoder')
     return encoder
 
-
 def build_decoder(latent_dim, output_shape):
 
     encoded_input = Input(shape=(latent_dim,))
@@ -162,6 +169,46 @@ def build_decoder(latent_dim, output_shape):
 
     decoder = Model(encoded_input, x, name='decoder')
     return decoder
+
+# Fit and evaluate models
+def fit_evaluate(model, X_train, y_train, X_test, y_test,
+                 epochs=50, batch_size=64, val_split=0.1,
+                 num_classes=1):
+
+    _ = model.fit(X_train, y_train,
+                  epochs=epochs, batch_size=batch_size,
+                  validation_split=val_split)
+
+    predictions = np.array(model.predict(X_test))
+
+    roc_score = roc_auc_score(y_test, predictions, multi_class='ovo')
+    print(f"ROC-AUC: {roc_score:.3f}")
+
+    if num_classes == 1:
+        precision, recall, _ = precision_recall_curve(y_test, predictions)
+        auprc_score = auc(recall, precision)
+        print(f"AUPRC: {auprc_score:.3f} \n")
+
+    else:
+        # One vs. Rest (OvR) AUPRC
+        y_test_binarized = label_binarize(
+            y_test, classes=np.arange(num_classes)
+            )
+
+        # Calculate AUPRC for each class
+        auprc_scores = []
+        for i in range(num_classes):
+            precision, recall, _ = precision_recall_curve(
+                y_test_binarized[:, i],
+                predictions[:, i]
+                )
+            auprc_score = auc(recall, precision)
+            auprc_scores.append(auprc_score)
+
+        # Calculate the average AUPRC across all classes
+        average_auprc = np.mean(auprc_scores)
+
+        print("Average AUPRC: {:.3f}".format(average_auprc))
 
 
 # Main
@@ -199,7 +246,8 @@ if __name__ == "__main__":
 
     # Build and train the full ResNet model
     resnet_model = build_resnet_cnn(input_shape, num_classes=n_classes)
-    fit_model(resnet_model, X_train_mitbih_reshaped, y_train_mitbih_encoded, epochs=5)
+    # Changed from fit_model - to check any differences to cnn_transfer
+    fit_evaluate(resnet_model, X_train_mitbih_reshaped, y_train_mitbih_encoded, X_test_mitbih_reshaped, y_test_mitbih_encoded, epochs=10)
 
     # Extract the encoder from the trained ResNet model
     resnet_encoder = extract_encoder(resnet_model, input_shape)
@@ -227,7 +275,7 @@ if __name__ == "__main__":
         metrics=['accuracy', AUC(name='auc'), AUC(name='auprc', curve='PR'), Precision(name='precision'), Recall(name='recall')])
 
     autoencoder.fit(X_train_mitbih_reshaped, X_train_mitbih_reshaped,
-                    epochs=5,
+                    epochs=10,
                     batch_size=256,
                     shuffle=True,
                     validation_split=0.1)
@@ -246,3 +294,5 @@ if __name__ == "__main__":
     print(X_train_combined.shape, y_indicator.shape)
     visualize_representations(resnet_encoder, X_train_combined, y_indicator, 'Comparison of dataset embeddings (RESNET)', "RESNET-both.png")
     visualize_representations(encoder, X_train_combined, y_indicator, 'Comparison of dataset embeddings (AUTOENCODER)', "Autoencoder-both.png")
+
+
