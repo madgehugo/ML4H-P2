@@ -187,10 +187,10 @@ if __name__ == "__main__":
     decoded_output = decoder(encoded_output)
 
     autoencoder = Model(autoencoder_input, decoded_output, name='autoencoder')
-    autoencoder.compile(optimizer='adam', loss='binary_crossentropy')
+    autoencoder.compile(optimizer='adam', loss='mean_squared_error')
 
     autoencoder.fit(X_train_reshaped, X_train_reshaped,
-                    epochs=20,
+                    epochs=1,
                     batch_size=256,
                     shuffle=True)
     
@@ -199,7 +199,7 @@ if __name__ == "__main__":
     encoded = encoded.reshape((encoded.shape[0], encoded.shape[1], 1))
     test_encoded = encoder.predict(X_test_reshaped)
     test_encoded = test_encoded.reshape((test_encoded.shape[0], test_encoded.shape[1], 1))
-    print(encoded)
+    print(encoded[:5])
     logreg = log_reg_model(encoded)
     
     fit_evaluate(logreg, encoded, y_train, test_encoded, y_test)
