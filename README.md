@@ -31,7 +31,7 @@ Relevant scripts have been placed within the appropriate folder (part1 or part2)
 | Task 2 | part2/ |
 | ------------- | ------------- |
 | 2.1  | cnn_transfer.py  |
-| 2.2  | autoencoder.py  |
+| 2.2  | classic_representation.py  |
 | 2.3  | viz-encoders.py  |
 | 2.4.1  | autoencoder.py |
 | 2.4.2 A  | autoencoder.py  |
