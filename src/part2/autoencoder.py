@@ -161,6 +161,15 @@ def log_reg_model(X_train):
         ])
     return model
 
+def extract_encoder(full_model, input_shape):
+    encoder = Model(inputs=full_model.input, outputs=full_model.get_layer('flatten').output)
+    return encoder
+
+def fit_model(model, X_train, y_train, epochs=10, batch_size=64, val_split=0.1):
+    model.fit(X_train, y_train,
+              epochs=epochs, batch_size=batch_size,
+              validation_split=val_split)
+
 
 
 
@@ -201,10 +210,14 @@ if __name__ == "__main__":
 
     # logreg = log_reg_model(encoded)
 
-    # y_train_oh= to_categorical(y_train, num_classes=n_classes)
-    # y_test_oh = to_categorical(y_test, num_classes=n_classes)
+    y_train_oh= to_categorical(y_train, num_classes=n_classes)
+    y_test_oh = to_categorical(y_test, num_classes=n_classes)
     
-    # fit_evaluate(logreg, encoded, y_train_oh, test_encoded, y_test_oh, num_classes=5)
+    resnet_model = build_resnet_encoder(input_shape, num_classes=n_classes)
+    fit_model(resnet_model, X_train, y_train_oh, epochs=1)
+
+    # Extract the encoder from the trained ResNet model
+    resnet_encoder = extract_encoder(resnet_model, input_shape)
     
 
     dpath = Path("./data/ptbdb/")
