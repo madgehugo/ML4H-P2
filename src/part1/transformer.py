@@ -1,14 +1,13 @@
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+import pandas as pd
+import seaborn as sns
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from sklearn.metrics import average_precision_score, roc_auc_score
 from torch.utils.data import DataLoader, TensorDataset
-import numpy as np
-import pandas as pd
-from pathlib import Path
-import matplotlib.pyplot as plt
-import seaborn as sns
-
-from sklearn.metrics import roc_auc_score, average_precision_score
 
 
 class TransformerEncoderLayer(nn.Module):
@@ -32,10 +31,14 @@ class TransformerEncoderLayer(nn.Module):
         src = self.norm2(src)
         return src, attn_weights
 
+
 class TransformerModel(nn.Module):
-    def __init__(self, num_layers, d_model, nhead, dim_feedforward, num_classes, dropout=0.1):
+    def __init__(self, num_layers, d_model, nhead, dim_feedforward,
+                 num_classes, dropout=0.1):
         super(TransformerModel, self).__init__()
-        self.encoder_layers = nn.ModuleList([TransformerEncoderLayer(d_model, nhead, dim_feedforward, dropout) for _ in range(num_layers)])
+        self.encoder_layers = nn.ModuleList(
+            [TransformerEncoderLayer(d_model, nhead, dim_feedforward, dropout)
+             for _ in range(num_layers)])
         self.fc = nn.Linear(d_model, num_classes)
 
     def forward(self, src, src_mask=None):
@@ -46,7 +49,8 @@ class TransformerModel(nn.Module):
         output = self.fc(src)
         return output, attention_weights
 
-def load_train_test(dpath="../../data/ptbdb/"):
+
+def load_train_test(dpath="./data/ptbdb/"):
     df_train = pd.read_csv(Path(dpath) / 'train.csv', header=None)
     df_test = pd.read_csv(Path(dpath) / 'test.csv', header=None)
 
@@ -61,7 +65,8 @@ def load_train_test(dpath="../../data/ptbdb/"):
     return X_train, y_train, X_test, y_test
 
 
-def fit_evaluate(model, train_loader, test_loader, optimizer, criterion, epochs=10):
+def fit_evaluate(model, train_loader, test_loader, optimizer,
+                 criterion, epochs=10):
     model.train()
     for epoch in range(epochs):
         running_loss = 0.0
@@ -69,12 +74,13 @@ def fit_evaluate(model, train_loader, test_loader, optimizer, criterion, epochs=
             optimizer.zero_grad()
             outputs, _ = model(inputs)
             targets = targets.unsqueeze(1)  # Convert to tensor
-            loss = criterion(outputs, targets)  # Assuming binary classification
+            loss = criterion(outputs, targets)  # Assuming binary
             loss.backward()
             optimizer.step()
             running_loss += loss.item()
 
-        print(f"Epoch {epoch + 1} Training Loss: {running_loss / len(train_loader)}")
+        train_loss = running_loss / len(train_loader)
+        print(f"Epoch {epoch + 1} Training Loss: {train_loss}")
 
     model.eval()
     correct = 0
@@ -103,7 +109,8 @@ def fit_evaluate(model, train_loader, test_loader, optimizer, criterion, epochs=
     print(f"AUPRC: {auprc}")
 
 
-def visualize_attention(model, src_len):
+def visualize_attention(model, src_len, test_loader):
+    results_dir = Path("./results")
     src = ["<sos>"] + [str(i) for i in range(1, src_len-1)] + ["<eos>"]
     trg = ["<sos>"] + ["<eos>"]
     model.eval()
@@ -115,15 +122,17 @@ def visualize_attention(model, src_len):
             attention_weights = attention_weights[-1].cpu().numpy().squeeze()
 
             plt.figure(figsize=(src_len, src_len))
-            sns.heatmap(attention_weights, xticklabels=trg, yticklabels=src, annot=True, cbar=False)
+            sns.heatmap(attention_weights, xticklabels=trg, yticklabels=src,
+                        annot=True, cbar=False)
             plt.title(f'Attention Heatmap for Example {i+1}')
             plt.xlabel('Target')
             plt.ylabel('Source')
-            plt.savefig(f'attention_heatmap_example_{i+1}.png')  # Save figure to a file
+            plt.savefig(results_dir / f'attention_heatmap_example_{i + 1}.png')
             plt.close()  # Close the figure
-            print(f"Attention Heatmap for Example {i+1} saved!")    
+            print(f"Attention Heatmap for Example {i+1} saved!")
             if i > 3:
                 break  # Only visualize the attention of the first example
+
 
 # Set device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -148,7 +157,8 @@ train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
 test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=False)
 
 # Initialize model
-model = TransformerModel(num_layers, d_model, nhead, dim_feedforward, num_classes, dropout).to(device)
+model = TransformerModel(num_layers, d_model, nhead, dim_feedforward,
+                         num_classes, dropout).to(device)
 
 # Define loss and optimizer
 criterion = nn.BCEWithLogitsLoss()
@@ -158,4 +168,4 @@ optimizer = optim.Adam(model.parameters())
 fit_evaluate(model, train_loader, test_loader, optimizer, criterion)
 
 # Visualize attention
-visualize_attention(model, X_train.shape[1])
+visualize_attention(model, X_train.shape[1], test_loader)
