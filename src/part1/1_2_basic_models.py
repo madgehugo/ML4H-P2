@@ -3,7 +3,6 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import tensorflow as tf
 import tensorflow_decision_forests as tfdf
 from sklearn.metrics import auc, precision_recall_curve, roc_auc_score
 from sklearn.preprocessing import label_binarize
@@ -98,7 +97,7 @@ def log_reg_model(X_train):
 
 def random_forest_model(X_train, y_train):
     # Convert data to TensorFlow dataset
-    #train_ds = tf.data.Dataset.from_tensor_slices((X_train, y_train))
+    # train_ds = tf.data.Dataset.from_tensor_slices((X_train, y_train))
 
     # Define the Random Forest model with the same hyperparameters
     model = tfdf.keras.RandomForestModel(
@@ -157,12 +156,7 @@ if __name__ == "__main__":
     X_train_df['time'] = range(len(X_train_df))
     X_test_df['time'] = range(len(X_test_df))
 
-    ### TSFRESH ###########################################################################
-
-    from tsfresh import extract_features
-    from tsfresh.feature_extraction import MinimalFCParameters
-    import multiprocessing
-
+    # --------------- TSFRESH --------------- #
     # Strategy 1: Specify subset of relevant features to reduce # of features
     fc_parameters = MinimalFCParameters()  # Use the minimal feature set
     fc_parameters.update({
