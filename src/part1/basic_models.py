@@ -138,7 +138,7 @@ if __name__ == "__main__":
     # Logistic Regression
     print("--- Log. Reg. ---")
     logreg = log_reg_model(X_train_logreg)
-     fit_evaluate(logreg, X_train_logreg, y_train, X_test_logreg, y_test)
+    fit_evaluate(logreg, X_train_logreg, y_train, X_test_logreg, y_test)
 
     # Random Forest
     print("--- Random Forest ---")

@@ -222,12 +222,27 @@ if __name__ == "__main__":
     decoded_output = decoder(encoded_output)
 
     autoencoder = Model(autoencoder_input, decoded_output, name='autoencoder')
-    autoencoder.compile(optimizer='adam', loss='binary_crossentropy')
+    autoencoder.compile(
+        optimizer='adam', loss='binary_crossentropy', 
+        metrics=['accuracy', AUC(name='auc'), AUC(name='auprc', curve='PR'), Precision(name='precision'), Recall(name='recall')])
 
     autoencoder.fit(X_train_mitbih_reshaped, X_train_mitbih_reshaped,
-                    epochs=5,
+                    epochs=1,
                     batch_size=256,
-                    shuffle=True)
+                    shuffle=True,
+                    validation_split=0.1)
     
     visualize_representations(encoder, X_train_mitbih_subset, y_train_mitbih_subset, 'Learned Representations - MIT-BIH (Subset)', "Autoencoder-MITBIH.png")
     visualize_representations(encoder, X_train_ptbdb_subset, y_train_ptbdb_subset, 'Learned Representations - PTBDB (Subset)', "Autoencoder-PTBDB.png")
+    print(X_train_mitbih_subset.shape, y_train_mitbih_subset.shape)
+    # Plot both datasets vis t-SNE | color = dataset
+    X_train_combined = np.vstack((X_train_mitbih_subset, X_train_ptbdb_subset))
+    mitbih_labels = np.zeros((X_train_mitbih_subset.shape[0], ))  # 0 for mitbih
+    ptbdb_labels = np.ones((X_train_ptbdb_subset.shape[0], ))     # 1 for ptbdb
+
+    # Stack the binary labels vertically
+    y_indicator = np.vstack((mitbih_labels, ptbdb_labels))
+    y_indicator = y_indicator.flatten()
+    print(X_train_combined.shape, y_indicator.shape)
+    visualize_representations(resnet_encoder, X_train_combined, y_indicator, 'Comparison of dataset embeddings (RESNET)', "RESNET-both.png")
+    visualize_representations(encoder, X_train_combined, y_indicator, 'Comparison of dataset embeddings (AUTOENCODER)', "Autoencoder-both.png")
