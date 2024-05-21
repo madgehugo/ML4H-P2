@@ -175,7 +175,6 @@ if __name__ == "__main__":
     X_test_reshaped = reshape_data(X_test)
     input_dim = X_train_reshaped.shape[1]
     input_shape = (X_train_reshaped.shape[1], 1)
-    # input_shape = (X_train_reshaped.shape[1], 1)
     latent_dim = 64
     n_classes = 5
 
@@ -201,19 +200,9 @@ if __name__ == "__main__":
     ptb_X_test = reshape_data(ptb_X_test_unshaped)
 
 
-    
     inputs = Input(shape=input_shape)
     
     encoded_output = encoder(inputs)
-
-    # Add new output layer(s) for binary classification
-    # x = Dense(128, activation='relu')(encoded_output)
-    # x = Dropout(0.5)(x)
-    # x = Dense(64, activation='relu')(x)
-    # x = Dropout(0.5)(x)
-    # x = Dense(32, activation='relu')(x)
-    # x = Dropout(0.5)(x)
-    # output = Dense(1, activation='sigmoid')(x)
     output = Dense(1, activation='sigmoid')(encoded_output)
 
 
@@ -223,16 +212,9 @@ if __name__ == "__main__":
     # Compile the new model
     new_encoder.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
 
-
     # Train the new model on the new dataset
     new_encoder.fit(ptb_X_train, ptb_y_train, epochs=10, batch_size=32, validation_split=0.2)
     predictions = new_encoder.predict(ptb_X_test)
-
-    print("-------predictions----------")
-    print (predictions[:10])
-
-    print("-----------y_test-----------")
-    print(ptb_y_test[:10])
 
     auroc_score = roc_auc_score(ptb_y_test, predictions) 
     print("-----------auroc -----------")
