@@ -199,7 +199,7 @@ if __name__ == "__main__":
 
     # Build and train the full ResNet model
     resnet_model = build_resnet_cnn(input_shape, num_classes=n_classes)
-    fit_model(resnet_model, X_train_mitbih_reshaped, y_train_mitbih_encoded, epochs=1)
+    fit_model(resnet_model, X_train_mitbih_reshaped, y_train_mitbih_encoded, epochs=5)
 
     # Extract the encoder from the trained ResNet model
     resnet_encoder = extract_encoder(resnet_model, input_shape)
@@ -227,7 +227,7 @@ if __name__ == "__main__":
         metrics=['accuracy', AUC(name='auc'), AUC(name='auprc', curve='PR'), Precision(name='precision'), Recall(name='recall')])
 
     autoencoder.fit(X_train_mitbih_reshaped, X_train_mitbih_reshaped,
-                    epochs=1,
+                    epochs=5,
                     batch_size=256,
                     shuffle=True,
                     validation_split=0.1)
@@ -237,9 +237,9 @@ if __name__ == "__main__":
     print(X_train_mitbih_subset.shape, y_train_mitbih_subset.shape)
     # Plot both datasets vis t-SNE | color = dataset
     X_train_combined = np.vstack((X_train_mitbih_subset, X_train_ptbdb_subset))
-    mitbih_labels = np.zeros((X_train_mitbih_subset.shape[0], ))  # 0 for mitbih
-    ptbdb_labels = np.ones((X_train_ptbdb_subset.shape[0], ))     # 1 for ptbdb
-
+    mitbih_labels = np.zeros((X_train_mitbih_subset.shape[0], 1))  # 0 for mitbih
+    ptbdb_labels = np.ones((X_train_ptbdb_subset.shape[0], 1))     # 1 for ptbdb
+    print(mitbih_labels.shape, ptbdb_labels.shape)
     # Stack the binary labels vertically
     y_indicator = np.vstack((mitbih_labels, ptbdb_labels))
     y_indicator = y_indicator.flatten()
