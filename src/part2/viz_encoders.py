@@ -1,26 +1,25 @@
 from pathlib import Path
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import seaborn as sns
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
-from sklearn.metrics import silhouette_score
-import matplotlib.pyplot as plt
-import seaborn as sns
+from sklearn.metrics import (auc, precision_recall_curve, roc_auc_score,
+                             silhouette_score)
+from sklearn.preprocessing import label_binarize
 from tensorflow.keras.layers import (Activation, Add, BatchNormalization,
                                      Conv1D, Dense, Dropout, Flatten, Input,
                                      MaxPooling1D, Reshape)
-from tensorflow.keras.models import Model, Sequential
+from tensorflow.keras.metrics import AUC, Precision, Recall
+from tensorflow.keras.models import Model
 from tensorflow.keras.regularizers import l2
 from tensorflow.keras.utils import to_categorical
-from tensorflow.keras.metrics import AUC, Precision, Recall
-from tensorflow.keras.optimizers import Adam
 from tqdm import tqdm
 
-from sklearn.metrics import auc, precision_recall_curve, roc_auc_score
-from sklearn.preprocessing import label_binarize
 
-
-def load_train_test(dpath="../../data/mitbih/"):
+def load_train_test(dpath="./data/mitbih/"):
     df_train = pd.read_csv(dpath / 'train.csv', header=None)
     df_test = pd.read_csv(dpath / 'test.csv', header=None)
 
@@ -34,8 +33,10 @@ def load_train_test(dpath="../../data/mitbih/"):
 
     return X_train, y_train, X_test, y_test
 
+
 def reshape_data(X):
     return X.values.reshape((X.shape[0], X.shape[1], 1))
+
 
 def residual_block(x, filters, kernel_size=3, stride=1,
                    conv_shortcut=True, name=None):
@@ -60,6 +61,7 @@ def residual_block(x, filters, kernel_size=3, stride=1,
     x = Add()([shortcut, x])
     x = Activation('relu', name=name+'_out')(x)
     return x
+
 
 def build_resnet_cnn(input_shape, filters=32, kernel_size=5, strides=2,
                      loss='categorical_crossentropy', out_activation='softmax',
@@ -88,17 +90,25 @@ def build_resnet_cnn(input_shape, filters=32, kernel_size=5, strides=2,
     model = Model(inputs, outputs)
     model.compile(optimizer='adam',
                   loss=loss,
-                  metrics=['accuracy', AUC(name='auc'), AUC(name='auprc', curve='PR'), Precision(name='precision'), Recall(name='recall')])
+                  metrics=['accuracy', AUC(name='auc'),
+                           AUC(name='auprc', curve='PR'),
+                           Precision(name='precision'),
+                           Recall(name='recall')])
     return model
 
-def fit_model(model, X_train, y_train, epochs=10, batch_size=64, val_split=0.1):
+
+def fit_model(model, X_train, y_train, epochs=10,
+              batch_size=64, val_split=0.1):
     model.fit(X_train, y_train,
               epochs=epochs, batch_size=batch_size,
               validation_split=val_split)
 
+
 def extract_encoder(full_model, input_shape):
-    encoder = Model(inputs=full_model.input, outputs=full_model.get_layer('flatten').output)
+    encoder = Model(inputs=full_model.input,
+                    outputs=full_model.get_layer('flatten').output)
     return encoder
+
 
 def visualize_representations(encoder, dataset, labels, title, filename):
     # Obtain representations
@@ -131,20 +141,23 @@ def visualize_representations(encoder, dataset, labels, title, filename):
 
     # Plot
     plt.figure(figsize=(10, 8))
-    sns.scatterplot(x=reduced_repr[:, 0], y=reduced_repr[:, 1], hue=subset_labels, palette='viridis', legend='full')
+    sns.scatterplot(x=reduced_repr[:, 0], y=reduced_repr[:, 1],
+                    hue=subset_labels, palette='viridis', legend='full')
     plt.title(f'{title}\nSilhouette Score: {silhouette_avg:.2f}')
     plt.xlabel('Dimension 1')
     plt.ylabel('Dimension 2')
     plt.legend(title='Labels', loc='upper right')
     plt.savefig(filename)
 
-def build_resnet_encoder(input_shape, filters=32, kernel_size=5, strides=2, out_activation='sigmoid',
-                     num_classes=1):
+
+def build_resnet_encoder(input_shape, filters=32, kernel_size=5,
+                         strides=2, out_activation='sigmoid', num_classes=1):
     inputs = Input(shape=input_shape)
-    x = Conv1D(filters, kernel_size, strides=strides, padding='same', name='conv1')(inputs)
+    x = Conv1D(filters, kernel_size, strides=strides,
+               padding='same', name='conv1')(inputs)
     x = BatchNormalization(name='bn_conv1')(x)
     x = Activation('relu')(x)
-   
+
     x = residual_block(x, filters, name='res_block1')
     x = MaxPooling1D(3, strides=strides, padding='same')(x)
 
@@ -159,6 +172,7 @@ def build_resnet_encoder(input_shape, filters=32, kernel_size=5, strides=2, out_
     encoder = Model(inputs, x, name='encoder')
     return encoder
 
+
 def build_decoder(latent_dim, output_shape):
 
     encoded_input = Input(shape=(latent_dim,))
@@ -169,6 +183,7 @@ def build_decoder(latent_dim, output_shape):
 
     decoder = Model(encoded_input, x, name='decoder')
     return decoder
+
 
 # Fit and evaluate models
 def fit_evaluate(model, X_train, y_train, X_test, y_test,
@@ -213,10 +228,10 @@ def fit_evaluate(model, X_train, y_train, X_test, y_test,
 
 # Main
 if __name__ == "__main__":
-    ######## MITBIH #######################################
+    # ----------- MITBIH ----------- #
     print("--- ResNet Encoder with Visualization ---")
     # Load the data
-    mitbih_dpath = Path("../../data/mitbih/")
+    mitbih_dpath = Path("./data/mitbih/")
     X_train_mitbih, y_train_mitbih, X_test_mitbih, y_test_mitbih = load_train_test(mitbih_dpath)
 
     # Reshape the data for CNNs
@@ -230,12 +245,14 @@ if __name__ == "__main__":
 
     # One-hot encode the target
     n_classes = 5
-    y_train_mitbih_encoded = to_categorical(y_train_mitbih, num_classes=n_classes)
-    y_test_mitbih_encoded = to_categorical(y_test_mitbih, num_classes=n_classes)
+    y_train_mitbih_encoded = to_categorical(y_train_mitbih,
+                                            num_classes=n_classes)
+    y_test_mitbih_encoded = to_categorical(y_test_mitbih,
+                                           num_classes=n_classes)
 
-    ######## PTBDB #######################################
+    # ----------- PTBDB ----------- #
     # Load the data
-    ptbdb_dpath = Path("../../data/ptbdb/")
+    ptbdb_dpath = Path("./data/ptbdb/")
     X_train_ptbdb, y_train_ptbdb, X_test_ptbdb, y_test_ptbdb = load_train_test(ptbdb_dpath)
 
     # Select every 10th datapoint
@@ -247,41 +264,57 @@ if __name__ == "__main__":
     # Build and train the full ResNet model
     resnet_model = build_resnet_cnn(input_shape, num_classes=n_classes)
     # Changed from fit_model - to check any differences to cnn_transfer
-    fit_evaluate(resnet_model, X_train_mitbih_reshaped, y_train_mitbih_encoded, X_test_mitbih_reshaped, y_test_mitbih_encoded, epochs=10)
+    fit_evaluate(resnet_model, X_train_mitbih_reshaped, y_train_mitbih_encoded,
+                 X_test_mitbih_reshaped, y_test_mitbih_encoded, epochs=10)
 
     # Extract the encoder from the trained ResNet model
     resnet_encoder = extract_encoder(resnet_model, input_shape)
 
-    # Visualize learned representations for the subset of the MIT-BIH dataset using the encoder
-    visualize_representations(resnet_encoder, X_train_mitbih_subset, y_train_mitbih_subset, 'Learned Representations - MIT-BIH (Subset)', "RESNET-MITBIH.png")
-    visualize_representations(resnet_encoder, X_train_ptbdb_subset, y_train_ptbdb_subset, 'Learned Representations - PTBDB (Subset)', "RESNET-PTBDB.png")
+    # Visualize learned representations subset of the MIT-BIH dataset
+    visualize_representations(resnet_encoder, X_train_mitbih_subset,
+                              y_train_mitbih_subset,
+                              'Learned Representations - MIT-BIH (Subset)',
+                              "./results/RESNET-MITBIH.png")
+    visualize_representations(resnet_encoder, X_train_ptbdb_subset,
+                              y_train_ptbdb_subset,
+                              'Learned Representations - PTBDB (Subset)',
+                              "./results/RESNET-PTBDB.png")
 
-    ## AUTOENCODER STUFF ##################################
-
+    # AUTOENCODER STUFF #
     input_shape = (X_train_mitbih_reshaped.shape[1], 1)
     encoding_dim = 64
 
-    encoder = build_resnet_encoder(input_shape, filters=32, kernel_size=5, strides=2, out_activation='sigmoid', num_classes=64)
+    encoder = build_resnet_encoder(input_shape, filters=32, kernel_size=5,
+                                   strides=2, out_activation='sigmoid',
+                                   num_classes=64)
     decoder = build_decoder(64, input_shape)
 
-    latent_dim=64
     autoencoder_input = Input(shape=input_shape)
     encoded_output = encoder(autoencoder_input)
     decoded_output = decoder(encoded_output)
 
     autoencoder = Model(autoencoder_input, decoded_output, name='autoencoder')
     autoencoder.compile(
-        optimizer='adam', loss='binary_crossentropy', 
-        metrics=['accuracy', AUC(name='auc'), AUC(name='auprc', curve='PR'), Precision(name='precision'), Recall(name='recall')])
+        optimizer='adam', loss='binary_crossentropy',
+        metrics=['accuracy', AUC(name='auc'),
+                 AUC(name='auprc', curve='PR'),
+                 Precision(name='precision'),
+                 Recall(name='recall')])
 
     autoencoder.fit(X_train_mitbih_reshaped, X_train_mitbih_reshaped,
                     epochs=10,
                     batch_size=256,
                     shuffle=True,
                     validation_split=0.1)
-    
-    visualize_representations(encoder, X_train_mitbih_subset, y_train_mitbih_subset, 'Learned Representations - MIT-BIH (Subset)', "Autoencoder-MITBIH.png")
-    visualize_representations(encoder, X_train_ptbdb_subset, y_train_ptbdb_subset, 'Learned Representations - PTBDB (Subset)', "Autoencoder-PTBDB.png")
+
+    visualize_representations(encoder, X_train_mitbih_subset,
+                              y_train_mitbih_subset,
+                              'Learned Representations - MIT-BIH (Subset)',
+                              "./results/Autoencoder-MITBIH.png")
+    visualize_representations(encoder, X_train_ptbdb_subset,
+                              y_train_ptbdb_subset,
+                              'Learned Representations - PTBDB (Subset)',
+                              "./results/Autoencoder-PTBDB.png")
     print(X_train_mitbih_subset.shape, y_train_mitbih_subset.shape)
     # Plot both datasets vis t-SNE | color = dataset
     X_train_combined = np.vstack((X_train_mitbih_subset, X_train_ptbdb_subset))
@@ -292,7 +325,11 @@ if __name__ == "__main__":
     y_indicator = np.vstack((mitbih_labels, ptbdb_labels))
     y_indicator = y_indicator.flatten()
     print(X_train_combined.shape, y_indicator.shape)
-    visualize_representations(resnet_encoder, X_train_combined, y_indicator, 'Comparison of dataset embeddings (RESNET)', "RESNET-both.png")
-    visualize_representations(encoder, X_train_combined, y_indicator, 'Comparison of dataset embeddings (AUTOENCODER)', "Autoencoder-both.png")
-
-
+    visualize_representations(resnet_encoder, X_train_combined,
+                              y_indicator,
+                              'Comparison of dataset embeddings (RESNET)',
+                              "./results/RESNET-both.png")
+    visualize_representations(encoder, X_train_combined,
+                              y_indicator,
+                              'Comparison of dataset embeddings (AUTOENCODER)',
+                              './results/Autoencoder-both.png')
