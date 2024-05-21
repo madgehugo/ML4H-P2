@@ -1,25 +1,22 @@
+import multiprocessing
 from pathlib import Path
-import tensorflow as tf
-from tensorflow.keras.layers import LSTM, Bidirectional, Dense, Dropout
-from tensorflow.keras.metrics import AUC, Precision, Recall
-from tensorflow.keras.models import Sequential
-
-import tensorflow_decision_forests as tfdf
-
-from tsfresh import extract_features
-
-
-
-#from src.utils.utils import fit_evaluate, load_train_test, reshape_data
-# TEMP as I had import issues with src utils
 
 import numpy as np
 import pandas as pd
+import tensorflow as tf
+import tensorflow_decision_forests as tfdf
 from sklearn.metrics import auc, precision_recall_curve, roc_auc_score
 from sklearn.preprocessing import label_binarize
+from tensorflow.keras.layers import Dense
+from tensorflow.keras.metrics import AUC, Precision, Recall
+from tensorflow.keras.models import Sequential
+from tsfresh import extract_features
+from tsfresh.feature_extraction import MinimalFCParameters
+
+# from src.utils.utils import fit_evaluate, load_train_test, reshape_data
+# TEMP as I had import issues with src utils
 
 
-# TODO: Add headers to the data
 def load_train_test(dpath="../../data/ptbdb/"):
     df_train = pd.read_csv(dpath / 'train.csv', header=None)
     df_test = pd.read_csv(dpath / 'test.csv', header=None)
@@ -84,11 +81,10 @@ def fit_evaluate(model, X_train, y_train, X_test, y_test,
 def log_reg_model(X_train):
     model = Sequential()
     model.add(
-        Dense(
-            1, 
-            activation='sigmoid',  # Sigmoid activation for logistic regression
-            input_shape=(X_train.shape[1],)  # Input shape is 1D
-            )) 
+        Dense(1,
+              activation='sigmoid',
+              input_shape=(X_train.shape[1],)  # Input shape is 1D
+              ))
     model.compile(
         optimizer='adam',
         loss='binary_crossentropy',
@@ -142,7 +138,7 @@ if __name__ == "__main__":
     # Logistic Regression
     print("--- Log. Reg. ---")
     logreg = log_reg_model(X_train_logreg)
-    fit_evaluate(logreg, X_train_logreg, y_train, X_test_logreg, y_test)
+     fit_evaluate(logreg, X_train_logreg, y_train, X_test_logreg, y_test)
 
     # Random Forest
     print("--- Random Forest ---")
@@ -157,7 +153,7 @@ if __name__ == "__main__":
 
     X_train_df = pd.DataFrame(X_train_reshaped)
     X_test_df = pd.DataFrame(X_test_reshaped)
-    
+
     X_train_df['time'] = range(len(X_train_df))
     X_test_df['time'] = range(len(X_test_df))
 
@@ -167,7 +163,7 @@ if __name__ == "__main__":
     from tsfresh.feature_extraction import MinimalFCParameters
     import multiprocessing
 
-    # Strategy 1: Reduce the number of features by specifying a subset of relevant features
+    # Strategy 1: Specify subset of relevant features to reduce # of features
     fc_parameters = MinimalFCParameters()  # Use the minimal feature set
     fc_parameters.update({
         'mean': None,       # Include mean feature
@@ -175,13 +171,12 @@ if __name__ == "__main__":
         'standard_deviation': None,  # Include standard deviation feature
     })
 
-
     # Strategy 2: Parallelize feature extraction
     num_cores = multiprocessing.cpu_count()  # Get the number of CPU cores
     print("Number of CPU cores available:", num_cores)
 
     # Strategy 3: Optimize parameters
-    chunksize = 1000  # Set the chunksize parameter for more efficient processing
+    chunksize = 1000  # Set chunksize parameter for more efficient processing
 
     # Extract features with specified parameters and parallelization
     X_train_features = extract_features(X_train_df,
@@ -191,18 +186,18 @@ if __name__ == "__main__":
                                         chunksize=chunksize)
 
     # Extract features using tsfresh
-    #X_train_features = extract_features(X_train_df, column_id='time')
+    # X_train_features = extract_features(X_train_df, column_id='time')
     X_test_features = extract_features(X_test_df,
-                                        column_id='time',
-                                        default_fc_parameters=fc_parameters,
-                                        n_jobs=num_cores,
-                                        chunksize=chunksize)
+                                       column_id='time',
+                                       default_fc_parameters=fc_parameters,
+                                       n_jobs=num_cores,
+                                       chunksize=chunksize)
 
     # Merge the extracted features with your original dataset
     X_train_combined = pd.concat([X_train, X_train_features], axis=1)
     X_test_combined = pd.concat([X_test, X_test_features], axis=1)
 
-    X_train_logreg = reshape_data(X_train_combined) 
+    X_train_logreg = reshape_data(X_train_combined)
     X_test_logreg = reshape_data(X_test_combined)
 
     X_train_RF = X_train_combined.values
@@ -213,7 +208,7 @@ if __name__ == "__main__":
     print("X_test_RF shape:", X_test_RF.shape)
     print("y_train shape:", y_train.shape)
     print("y_test shape:", y_test.shape)
-    
+
     # Logistic Regression
     print("--- Log. Reg. ---")
     logreg = log_reg_model(X_train_logreg)
