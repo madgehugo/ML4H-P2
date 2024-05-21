@@ -102,7 +102,7 @@ def log_reg_model(X_train):
 
 def random_forest_model(X_train, y_train):
     # Convert data to TensorFlow dataset
-    train_ds = tf.data.Dataset.from_tensor_slices((X_train, y_train))
+    #train_ds = tf.data.Dataset.from_tensor_slices((X_train, y_train))
 
     # Define the Random Forest model with the same hyperparameters
     model = tfdf.keras.RandomForestModel(
@@ -142,13 +142,12 @@ if __name__ == "__main__":
     # Logistic Regression
     print("--- Log. Reg. ---")
     logreg = log_reg_model(X_train_logreg)
-    #fit_evaluate(logreg, X_train_logreg, y_train, X_test_logreg, y_test)
+    fit_evaluate(logreg, X_train_logreg, y_train, X_test_logreg, y_test)
 
     # Random Forest
     print("--- Random Forest ---")
     RF = random_forest_model(X_train_RF, y_train)
-    #fit_evaluate(RF, X_train_RF, y_train, X_test_RF, y_test, epochs=1)
-
+    fit_evaluate(RF, X_train_RF, y_train, X_test_RF, y_test, epochs=1)
 
     X_train_reshaped = np.reshape(X_train, (X_train.shape[0], -1))
     X_test_reshaped = np.reshape(X_test, (X_test.shape[0], -1))
@@ -156,29 +155,17 @@ if __name__ == "__main__":
     print("X_train_reshaped shape:", X_train_reshaped.shape)
     print("X_test_reshaped shape:", X_test_reshaped.shape)
 
-    # Assuming X_train and X_test are your time series data
-    # Convert your time series data into a DataFrame with appropriate column names
-    # For example, if each row represents a time series, you might have columns named 'time', 'value1', 'value2', etc.
-    #X_train_df = pd.DataFrame({'time': range(len(X_train_reshaped)), 'value': X_train_reshaped.squeeze()})
-    #X_test_df = pd.DataFrame({'time': range(len(X_test_reshaped)), 'value': X_test_reshaped.squeeze()})
-
     X_train_df = pd.DataFrame(X_train_reshaped)
     X_test_df = pd.DataFrame(X_test_reshaped)
     
     X_train_df['time'] = range(len(X_train_df))
     X_test_df['time'] = range(len(X_test_df))
 
-    # Create a DataFrame containing the first 10 data points
-    #X_train_first_10_points = X_train_df.iloc[:30]
-
-    # Extract features using tsfresh
-    #X_train_features = extract_features(X_train_first_10_points, column_id='time')
+    ### TSFRESH ###########################################################################
 
     from tsfresh import extract_features
     from tsfresh.feature_extraction import MinimalFCParameters
     import multiprocessing
-
-    # Load your dataset (X_train_df) here
 
     # Strategy 1: Reduce the number of features by specifying a subset of relevant features
     fc_parameters = MinimalFCParameters()  # Use the minimal feature set
@@ -186,7 +173,6 @@ if __name__ == "__main__":
         'mean': None,       # Include mean feature
         'median': None,     # Include median feature
         'standard_deviation': None,  # Include standard deviation feature
-        # Add more relevant features as needed
     })
 
 
