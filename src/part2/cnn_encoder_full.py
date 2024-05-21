@@ -50,7 +50,6 @@ def load_train_test(dpath="../../data/ptbdb/"):
 def reshape_data(X):
     return X.values.reshape((X.shape[0], X.shape[1], 1))
 
-
 # Fit and evaluate models
 def fit_evaluate(model, X_train, y_train, X_test, y_test,num_classes,
                  epochs=50, batch_size=64, val_split=0.1
@@ -90,7 +89,6 @@ def fit_evaluate(model, X_train, y_train, X_test, y_test,num_classes,
         average_auprc = np.mean(auprc_scores)
 
         print("Average AUPRC: {:.3f}".format(average_auprc))
-
 
 def residual_block(x, filters, kernel_size=3, stride=1, conv_shortcut=True, name=None):
     if conv_shortcut:
@@ -144,17 +142,6 @@ def extract_encoder(full_model, input_shape):
     encoder = Model(inputs=full_model.input, outputs=full_model.get_layer('flatten').output)
     return encoder
 
-def build_decoder(num_classes,latent_dim, output_shape):
-
-    encoded_input = Input(shape=(latent_dim,))
-    x = Dense(64, activation='relu')(encoded_input)
-    x = Dropout(0.5)(x)  # Add dropout layer with a dropout rate of 0.5
-    x = Dense(output_shape[0] * output_shape[1], activation='relu')(x)
-    x = Reshape(output_shape)(x)
-
-    decoder = Model(encoded_input, x, name='decoder')
-    return decoder
-
 def log_reg_model(X_train):
     model = Sequential()
     model.add(
@@ -198,18 +185,15 @@ if __name__ == "__main__":
     # Extract the encoder from the trained ResNet model
     resnet_encoder = extract_encoder(resnet_model, input_shape)
     
-
     dpath = Path("../../data/ptbdb/")
     ptb_X_train_unshaped, ptb_y_train, ptb_X_test_unshaped, ptb_y_test = load_train_test(dpath)
     ptb_X_train = reshape_data(ptb_X_train_unshaped)
     ptb_X_test = reshape_data(ptb_X_test_unshaped)
 
-
     inputs = Input(shape=input_shape)
     
     encoded_output = resnet_encoder(inputs)
     output = Dense(1, activation='sigmoid')(encoded_output)
-
 
     # Create the new model
     new_encoder = Model(inputs, output)
@@ -221,12 +205,6 @@ if __name__ == "__main__":
     # Train the new model on the new dataset
     new_encoder.fit(ptb_X_train, ptb_y_train, epochs=10, batch_size=32, validation_split=0.2)
     predictions = new_encoder.predict(ptb_X_test)
-
-    print("-------predictions----------")
-    print (predictions[:10])
-
-    print("-----------y_test-----------")
-    print(ptb_y_test[:10])
 
     auroc_score = roc_auc_score(ptb_y_test, predictions) 
     print("-----------auroc -----------")

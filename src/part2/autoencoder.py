@@ -171,8 +171,6 @@ def fit_model(model, X_train, y_train, epochs=10, batch_size=64, val_split=0.1):
               validation_split=val_split)
 
 
-
-
 if __name__ == "__main__":
     print("--- Representation Learning Q2.2 ---")
     # Load the data
@@ -185,7 +183,6 @@ if __name__ == "__main__":
     input_dim = X_train_reshaped.shape[1]
     input_shape = (X_train_reshaped.shape[1], 1)
     
-    ######## Fit autoencoder ##################
     latent_dim = 64
     n_classes = 5
 
@@ -204,15 +201,6 @@ if __name__ == "__main__":
                     epochs=50,
                     batch_size=256,
                     shuffle=True)
-    ############################################
-
-
-    ######## Fit CNN encoder ###################
-    #encoder representations
-    # encoded = encoder.predict(X_train_reshaped)
-    # test_encoded = encoder.predict(X_test_reshaped)
-
-    # logreg = log_reg_model(encoded)
 
     y_train_oh= to_categorical(y_train, num_classes=n_classes)
     y_test_oh = to_categorical(y_test, num_classes=n_classes)
@@ -223,18 +211,10 @@ if __name__ == "__main__":
     # Extract the encoder from the trained ResNet model
     resnet_encoder = extract_encoder(resnet_model, input_shape)
     
-    #############################################
-
     dpath = Path("../../data/ptbdb/")
     ptb_X_train_unshaped, ptb_y_train, ptb_X_test_unshaped, ptb_y_test = load_train_test(dpath)
     ptb_X_train = reshape_data(ptb_X_train_unshaped)
     ptb_X_test = reshape_data(ptb_X_test_unshaped)
-
-    print("------shape ptb X train------")
-    print(ptb_X_train.shape)
-
-    print("------shape ptb X train unshaped------")
-    print(ptb_X_train_unshaped.shape)
 
     ae_encoded_train = ae_encoder.predict(ptb_X_train)
     
@@ -263,12 +243,6 @@ if __name__ == "__main__":
     # Train the new model on the new dataset
     new_encoder.fit(ptb_X_train, ptb_y_train, epochs=50, batch_size=32, validation_split=0.2)
     predictions = new_encoder.predict(ptb_X_test)
-
-    print("-------predictions----------")
-    print (predictions[:100])
-
-    print("-----------y_test-----------")
-    print(ptb_y_test[:100])
     
     # Calculate AUROC score
     auroc_score = roc_auc_score(ptb_y_test, predictions) 

@@ -22,15 +22,6 @@ if __name__ == "__main__":
     y_train_encoded = to_categorical(y_train, num_classes=n_classes)
     y_test_encoded = to_categorical(y_test, num_classes=n_classes)
 
-    # Vanilla CNN
-    # print("--- Vanilla CNN ---")
-    # vanilla_cnn = build_vanilla_cnn(input_shape,
-    #                                 loss='categorical_crossentropy',
-    #                                 out_activation='softmax',
-    #                                 num_classes=n_classes)
-    # fit_evaluate(vanilla_cnn, X_train_reshaped, y_train_encoded,
-    #              X_test_reshaped, y_test_encoded, num_classes=n_classes)
-
     # ResNet CNN
     print("--- ResNet CNN ---")
     resnet_cnn = build_resnet_cnn(input_shape,

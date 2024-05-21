@@ -188,28 +188,18 @@ if __name__ == "__main__":
     # Extract the encoder from the trained ResNet model
     resnet_encoder = extract_encoder(resnet_model, input_shape)
     
-
     ## Load ptbdb data
     dpath = Path("../../data/mitbih/")
     ptb_X_train_unshaped, ptb_y_train, ptb_X_test_unshaped, ptb_y_test = load_train_test(dpath)
     ptb_X_train = reshape_data(ptb_X_train_unshaped)
     ptb_X_test = reshape_data(ptb_X_test_unshaped)
 
-    #print("------shape ptb X train------")
-    #print(ptb_X_train.shape)
-
-    #print("------shape ptb X train unshaped------")
-    #print(ptb_X_train_unshaped.shape)
-
     ## Logreg of encoded ptbdb
     resnet_encoded_train = resnet_encoder.predict(ptb_X_train)
     resnet_encoded_test = resnet_encoder.predict(ptb_X_test)
     logreg = log_reg_model(resnet_encoded_train)
-    print("Start log. reg. results")
     fit_evaluate(logreg, resnet_encoded_train, ptb_y_train, resnet_encoded_test, ptb_y_test,num_classes=1,
                  epochs=50, batch_size=64, val_split=0.1)
-    print("End log. reg. results")
-
 
     for layer in resnet_encoder.layers:
         layer.trainable = False
@@ -225,16 +215,9 @@ if __name__ == "__main__":
     # Compile the new model
     new_encoder.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
 
-
     # Train the new model on the new dataset
     new_encoder.fit(ptb_X_train, ptb_y_train, epochs=50, batch_size=32, validation_split=0.2)
     predictions = new_encoder.predict(ptb_X_test)
-
-    print("-------predictions----------")
-    print (predictions[:100])
-
-    print("-----------y_test-----------")
-    print(ptb_y_test[:100])
     
     # Calculate AUROC score
     auroc_score = roc_auc_score(ptb_y_test, predictions) 
