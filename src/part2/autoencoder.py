@@ -167,7 +167,7 @@ def log_reg_model(X_train):
 if __name__ == "__main__":
     print("--- Representation Learning Q2.2 ---")
     # Load the data
-    dpath = Path("../../data/mitbih/")
+    dpath = Path("./data/mitbih/")
     X_train, y_train, X_test, y_test = load_train_test(dpath)
 
     # Reshape the data for CNNs
@@ -191,23 +191,23 @@ if __name__ == "__main__":
     autoencoder.compile(optimizer='adam', loss='binary_crossentropy')
 
     autoencoder.fit(X_train_reshaped, X_train_reshaped,
-                    epochs=2,
+                    epochs=50,
                     batch_size=256,
                     shuffle=True)
 
     #encoder representations
-    encoded = encoder.predict(X_train_reshaped)
-    test_encoded = encoder.predict(X_test_reshaped)
+    # encoded = encoder.predict(X_train_reshaped)
+    # test_encoded = encoder.predict(X_test_reshaped)
 
-    logreg = log_reg_model(encoded)
+    # logreg = log_reg_model(encoded)
 
-    y_train_oh= to_categorical(y_train, num_classes=n_classes)
-    y_test_oh = to_categorical(y_test, num_classes=n_classes)
+    # y_train_oh= to_categorical(y_train, num_classes=n_classes)
+    # y_test_oh = to_categorical(y_test, num_classes=n_classes)
     
-    fit_evaluate(logreg, encoded, y_train_oh, test_encoded, y_test_oh, num_classes=5)
+    # fit_evaluate(logreg, encoded, y_train_oh, test_encoded, y_test_oh, num_classes=5)
     
 
-    dpath = Path("../../data/ptbdb/")
+    dpath = Path("./data/ptbdb/")
     ptb_X_train_unshaped, ptb_y_train, ptb_X_test_unshaped, ptb_y_test = load_train_test(dpath)
     ptb_X_train = reshape_data(ptb_X_train_unshaped)
     ptb_X_test = reshape_data(ptb_X_test_unshaped)
